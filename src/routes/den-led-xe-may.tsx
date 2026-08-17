@@ -70,7 +70,7 @@ function LedPage() {
           <div className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-primary">
-                Hạng mục đang nhận làm
+                Dịch vụ đang nhận làm
               </p>
               <h2 className="mt-2 text-4xl text-white sm:text-5xl">CẤU HÌNH ÁNH SÁNG</h2>
             </div>
@@ -155,7 +155,7 @@ function LedPage() {
           ) : (
             <div className="border border-dashed border-white/15 py-16 text-center">
               <Lightbulb className="mx-auto h-9 w-9 text-steel" />
-              <p className="mt-4 text-lg font-semibold">Chưa có hạng mục phù hợp</p>
+              <p className="mt-4 text-lg font-semibold">Chưa có dịch vụ phù hợp</p>
             </div>
           )}
 

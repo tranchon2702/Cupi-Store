@@ -13,6 +13,7 @@ import { BikeCard } from "@/components/BikeCard";
 import { SiteFooter, SiteHeader } from "@/components/SiteChrome";
 import { getBike, getPublicPrice } from "@/data/bikes";
 import { useBikeInventory } from "@/hooks/use-bike-inventory";
+import { goToHomeSection } from "@/lib/navigation";
 
 export const Route = createFileRoute("/xe/$slug")({
   loader: ({ params }) => ({ bike: getBike(params.slug), slug: params.slug }),
@@ -89,9 +90,16 @@ function BikeDetail() {
               Trang chủ
             </Link>
             <ChevronRight className="h-3 w-3 shrink-0" />
-            <Link to="/" hash="kho-xe" className="shrink-0 hover:text-primary">
+            <a
+              href="/"
+              onClick={(event) => {
+                event.preventDefault();
+                goToHomeSection("kho-xe");
+              }}
+              className="shrink-0 hover:text-primary"
+            >
               Kho xe
-            </Link>
+            </a>
             <ChevronRight className="h-3 w-3 shrink-0" />
             <span className="truncate text-white">{bike.name}</span>
           </div>
@@ -140,14 +148,18 @@ function BikeDetail() {
                 <SectionTitle eyebrow="Specifications" title="THÔNG SỐ KỸ THUẬT" />
                 <div className="mt-4 grid sm:grid-cols-2">
                   {bike.specs
-                    .filter((spec) => spec.label !== "Bảo hành / ODO")
+                    .filter(
+                      (spec) =>
+                        !["Hộp số", "Phanh"].includes(spec.label) &&
+                        !(spec.label === "Bảo hành / ODO" && /\b(?:odo|km)\b/i.test(spec.value)),
+                    )
                     .map((spec, index) => (
                       <div
                         key={spec.label}
                         className={`flex items-center justify-between gap-4 border-b border-white/10 px-4 py-4 ${index % 2 === 0 ? "sm:border-r" : ""}`}
                       >
                         <span className="text-xs uppercase tracking-wider text-steel">
-                          {spec.label}
+                          {spec.label === "Bảo hành / ODO" ? "Bảo hành / Cam kết" : spec.label}
                         </span>
                         <strong className="text-right text-sm text-white">{spec.value}</strong>
                       </div>
@@ -162,8 +174,8 @@ function BikeDetail() {
                   <div className="mt-6 grid gap-3 sm:grid-cols-2">
                     {[
                       "Kiểm tra giấy tờ và số khung số máy",
-                      "Đánh giá động cơ, điện và hệ thống phanh",
-                      "Công khai tình trạng và số km đã đi",
+                      "Đánh giá động cơ và hệ thống điện",
+                      "Công khai tình trạng thực tế của xe",
                       "Hỗ trợ sang tên, trả góp và vận chuyển",
                     ].map((item) => (
                       <p key={item} className="flex items-center gap-2 text-xs text-foreground">
@@ -191,10 +203,7 @@ function BikeDetail() {
                   </p>
                   <h1 className="mt-2 text-4xl leading-none text-white sm:text-5xl">{bike.name}</h1>
                   <p className="mt-3 text-xs uppercase tracking-[0.16em] text-steel">
-                    Đời {bike.year} · {bike.engine}cc ·{" "}
-                    {bike.odo === 0
-                      ? "ODO đang cập nhật"
-                      : `${bike.odo.toLocaleString("vi-VN")} km`}
+                    Đời {bike.year} · {bike.engine}cc · {bike.condition}
                   </p>
                   <div className="my-6 border-y border-white/10 py-5">
                     <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-steel">

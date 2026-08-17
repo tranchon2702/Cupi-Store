@@ -89,6 +89,6 @@ export const ledServices: LedService[] = [
     description:
       "Combo bi cầu, trợ sáng, mạch LED và hệ thống điện được tính toán theo công suất xe. Báo cấu hình sau khi kiểm tra xe thực tế.",
     tags: ["Thi công trọn gói", "Kiểm tra sạc", "Căn chỉnh hoàn thiện"],
-    warranty: "Bảo hành theo hạng mục",
+    warranty: "Bảo hành theo dịch vụ",
   },
 ];

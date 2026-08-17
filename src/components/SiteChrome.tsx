@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { MapPin, Phone } from "lucide-react";
 import logo from "@/assets/logo-web.png";
+import { goToHomeSection } from "@/lib/navigation";
 
 export function SiteHeader() {
   return (
@@ -17,15 +18,29 @@ export function SiteHeader() {
         </Link>
 
         <nav className="hidden items-center gap-7 text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground md:flex">
-          <Link to="/" hash="kho-xe" className="transition hover:text-primary">
+          <a
+            href="/"
+            onClick={(event) => {
+              event.preventDefault();
+              goToHomeSection("kho-xe");
+            }}
+            className="transition hover:text-primary"
+          >
             Xe tại cửa hàng
-          </Link>
+          </a>
           <Link to="/den-led-xe-may" className="transition hover:text-primary">
             Làm đèn LED
           </Link>
-          <Link to="/" hash="lien-he" className="transition hover:text-primary">
+          <a
+            href="/"
+            onClick={(event) => {
+              event.preventDefault();
+              goToHomeSection("lien-he");
+            }}
+            className="transition hover:text-primary"
+          >
             Liên hệ
-          </Link>
+          </a>
         </nav>
 
         <a
@@ -38,26 +53,32 @@ export function SiteHeader() {
         </a>
       </div>
       <nav className="grid grid-cols-3 border-t border-white/10 text-center text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground md:hidden">
-        <Link
-          to="/"
-          hash="kho-xe"
+        <a
+          href="/"
+          onClick={(event) => {
+            event.preventDefault();
+            goToHomeSection("kho-xe");
+          }}
           className="flex min-h-10 items-center justify-center px-2 py-2 transition hover:bg-white/5 hover:text-primary"
         >
           Xe tại cửa hàng
-        </Link>
+        </a>
         <Link
           to="/den-led-xe-may"
           className="flex min-h-10 items-center justify-center border-x border-white/10 px-2 py-2 transition hover:bg-white/5 hover:text-primary"
         >
           Làm đèn LED
         </Link>
-        <Link
-          to="/"
-          hash="lien-he"
+        <a
+          href="/"
+          onClick={(event) => {
+            event.preventDefault();
+            goToHomeSection("lien-he");
+          }}
           className="flex min-h-10 items-center justify-center px-2 py-2 transition hover:bg-white/5 hover:text-primary"
         >
           Liên hệ
-        </Link>
+        </a>
       </nav>
     </header>
   );

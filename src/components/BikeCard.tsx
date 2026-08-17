@@ -33,12 +33,8 @@ export function BikeCard({ bike }: { bike: Bike }) {
           </h3>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 border-y border-border py-3 text-center">
+        <div className="grid grid-cols-2 gap-2 border-y border-border py-3 text-center">
           <Spec label="Phân khối" value={`${bike.engine}cc`} />
-          <Spec
-            label="ODO"
-            value={bike.odo === 0 ? "Đang cập nhật" : `${(bike.odo / 1000).toFixed(1)}k km`}
-          />
           <Spec label="Đời" value={String(bike.year)} />
         </div>
 

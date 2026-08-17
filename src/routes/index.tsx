@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, CheckCircle2, Gauge, Search, SlidersHorizontal } from "lucide-react";
 import banner from "@/assets/cupi-garage-banner.jpg";
 import { BikeCard } from "@/components/BikeCard";
@@ -7,6 +7,7 @@ import { SiteFooter, SiteHeader } from "@/components/SiteChrome";
 import { BIKE_BRANDS, BIKE_TYPES } from "@/data/bikes";
 import { useBikeInventory } from "@/hooks/use-bike-inventory";
 import { matchesPriceFilter, PRICE_FILTERS } from "@/lib/price-utils";
+import { goToHomeSection, restoreHomeSection } from "@/lib/navigation";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -30,7 +31,6 @@ export const Route = createFileRoute("/")({
 const SORTS = [
   { id: "new", label: "Mới đăng gần đây" },
   { id: "year", label: "Đời xe cao nhất" },
-  { id: "odo", label: "Số km thấp nhất" },
 ] as const;
 
 function Home() {
@@ -41,6 +41,12 @@ function Home() {
   const [price, setPrice] = useState("all");
   const [sort, setSort] = useState("new");
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    restoreHomeSection();
+    window.addEventListener("hashchange", restoreHomeSection);
+    return () => window.removeEventListener("hashchange", restoreHomeSection);
+  }, []);
 
   const list = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("vi");
@@ -63,9 +69,7 @@ function Home() {
             .includes(normalized))
       );
     });
-    return [...filtered].sort((a, b) =>
-      sort === "odo" ? a.odo - b.odo : sort === "year" ? b.year - a.year : 0,
-    );
+    return [...filtered].sort((a, b) => (sort === "year" ? b.year - a.year : 0));
   }, [inventory, type, brand, engine, price, sort, query]);
 
   const resetFilters = () => {
@@ -98,12 +102,13 @@ function Home() {
               STORE nhận thu mua, trao đổi xe nhanh gọn — định giá minh bạch, thủ tục rõ ràng.
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <a
-                href="#kho-xe"
+              <button
+                type="button"
+                onClick={() => goToHomeSection("kho-xe")}
                 className="clip-tag inline-flex min-h-12 items-center justify-center gap-2 bg-primary px-5 py-3 text-xs font-bold uppercase tracking-wider text-black sm:text-sm"
               >
                 Xem xe tại cửa hàng <ArrowRight className="h-4 w-4" />
-              </a>
+              </button>
               <a
                 href="https://zalo.me/0353979453"
                 target="_blank"

@@ -28,7 +28,6 @@ export const bikeSchema = z.object({
   price: z.number().nonnegative().default(0),
   priceMillion: priceSchema,
   priceLabel: z.string().max(40).optional(),
-  odo: z.number().int().nonnegative().max(2_000_000),
   engine: z.number().int().positive().max(3000),
   condition: z.enum(["Mới", "Đã qua sử dụng"]),
   cover: imageSchema,

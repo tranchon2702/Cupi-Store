@@ -38,15 +38,12 @@ type BikeForm = {
   year: string;
   priceMode: PriceMode;
   priceMillion: string;
-  odo: string;
   engine: string;
   condition: Bike["condition"];
   description: string;
   tags: string;
   power: string;
-  transmission: string;
   weight: string;
-  brake: string;
   warranty: string;
   images: string[];
 };
@@ -71,15 +68,12 @@ const emptyForm = (): BikeForm => ({
   year: String(new Date().getFullYear()),
   priceMode: "range",
   priceMillion: "1",
-  odo: "0",
   engine: "150",
   condition: "Đã qua sử dụng",
   description: "",
   tags: "ABS, Smartkey",
   power: "",
-  transmission: "CVT",
   weight: "",
-  brake: "",
   warranty: "36 tháng",
   images: [],
 });
@@ -124,6 +118,7 @@ function Dashboard() {
   const [ledNotice, setLedNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [ledSaving, setLedSaving] = useState(false);
+  const [activeSection, setActiveSection] = useState<"overview" | "inventory" | "led">("overview");
 
   useEffect(() => {
     fetch("/api/auth/session", { credentials: "same-origin" })
@@ -133,6 +128,54 @@ function Dashboard() {
       )
       .catch(() => setAuthState("guest"));
   }, []);
+
+  useEffect(() => {
+    const clearLegacyHash = () => {
+      if (window.location.hash) {
+        window.history.replaceState(
+          window.history.state,
+          "",
+          `${window.location.pathname}${window.location.search}`,
+        );
+      }
+    };
+    clearLegacyHash();
+    window.addEventListener("hashchange", clearLegacyHash);
+    return () => window.removeEventListener("hashchange", clearLegacyHash);
+  }, []);
+
+  useEffect(() => {
+    if (authState !== "authenticated") return;
+    const updateActiveSection = () => {
+      const inventoryTop =
+        document.getElementById("inventory")?.getBoundingClientRect().top ??
+        Number.POSITIVE_INFINITY;
+      const ledTop =
+        document.getElementById("led-services")?.getBoundingClientRect().top ??
+        Number.POSITIVE_INFINITY;
+      const marker = Math.min(220, window.innerHeight * 0.32);
+      const pageIsScrollable = document.documentElement.scrollHeight > window.innerHeight + 24;
+      const atBottom =
+        pageIsScrollable &&
+        window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 24;
+      setActiveSection(
+        atBottom || ledTop <= marker ? "led" : inventoryTop <= marker ? "inventory" : "overview",
+      );
+    };
+    updateActiveSection();
+    window.addEventListener("scroll", updateActiveSection, { passive: true });
+    window.addEventListener("resize", updateActiveSection);
+    return () => {
+      window.removeEventListener("scroll", updateActiveSection);
+      window.removeEventListener("resize", updateActiveSection);
+    };
+  }, [authState]);
+
+  const scrollToDashboardSection = (id: "overview" | "inventory" | "led-services") => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    setActiveSection(id === "led-services" ? "led" : id);
+  };
 
   const filtered = useMemo(
     () =>
@@ -155,16 +198,14 @@ function Dashboard() {
       year: String(bike.year),
       priceMode: priceMillion === null ? "contact" : "range",
       priceMillion: String(priceMillion ?? 1),
-      odo: String(bike.odo),
       engine: String(bike.engine),
       condition: bike.condition,
       description: bike.description,
       tags: bike.tags.join(", "),
       power: find("Công suất"),
-      transmission: find("Hộp số"),
       weight: find("Khối lượng"),
-      brake: find("Phanh"),
-      warranty: find("Bảo hành / ODO"),
+      warranty:
+        find("Bảo hành / Cam kết") || find("Bảo hành / ODO") || "Cam kết máy móc tại cửa hàng",
       images: bike.gallery,
     };
     setForm(nextForm);
@@ -224,7 +265,6 @@ function Dashboard() {
       price: 0,
       priceMillion,
       priceLabel: formatPublicPrice({ priceMillion }),
-      odo: Number(form.odo),
       engine: Number(form.engine),
       condition: form.condition,
       cover: form.images[0]!,
@@ -238,12 +278,10 @@ function Dashboard() {
       specs: [
         { label: "Động cơ", value: `${form.engine}cc` },
         { label: "Công suất", value: form.power || "Đang cập nhật" },
-        { label: "Hộp số", value: form.transmission || "Đang cập nhật" },
         { label: "Khối lượng", value: form.weight || "Đang cập nhật" },
-        { label: "Phanh", value: form.brake || "Đang cập nhật" },
         {
-          label: "Bảo hành / ODO",
-          value: form.warranty || `${Number(form.odo).toLocaleString("vi-VN")} km`,
+          label: "Bảo hành / Cam kết",
+          value: form.warranty || "Cam kết máy móc tại cửa hàng",
         },
       ],
     };
@@ -369,7 +407,9 @@ function Dashboard() {
       const savedForm = { ...ledForm, originalSlug: slug, images: savedService.gallery };
       setLedForm(savedForm);
       setInitialLedForm(JSON.stringify(savedForm));
-      setLedNotice(ledForm.originalSlug ? "Đã cập nhật hạng mục LED." : "Đã đăng hạng mục LED.");
+      setLedNotice(
+        ledForm.originalSlug ? "Đã cập nhật dịch vụ đèn LED." : "Đã đăng dịch vụ đèn LED.",
+      );
       setConfirmingLedClose(false);
       if (closeAfter) setShowLedEditor(false);
       return true;
@@ -440,56 +480,70 @@ function Dashboard() {
         </div>
       </header>
 
-      <nav className="grid grid-cols-2 border-b border-white/10 bg-[#0f1012] lg:hidden">
-        <a
-          href="#inventory"
-          className="flex h-11 items-center justify-center gap-2 border-r border-white/10 text-xs font-bold uppercase tracking-wider text-white"
+      <nav className="sticky top-0 z-30 grid grid-cols-2 border-b border-white/10 bg-[#0f1012] lg:hidden">
+        <button
+          type="button"
+          onClick={() => scrollToDashboardSection("inventory")}
+          className={`flex h-11 items-center justify-center gap-2 border-r border-white/10 text-xs font-bold uppercase tracking-wider ${activeSection === "inventory" ? "bg-primary text-black" : "text-white"}`}
         >
-          <BikeIcon className="h-4 w-4 text-primary" /> Kho xe
-        </a>
-        <a
-          href="#led-services"
-          className="flex h-11 items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider text-white"
+          <BikeIcon
+            className={`h-4 w-4 ${activeSection === "inventory" ? "text-black" : "text-primary"}`}
+          />{" "}
+          Kho xe
+        </button>
+        <button
+          type="button"
+          onClick={() => scrollToDashboardSection("led-services")}
+          className={`flex h-11 items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider ${activeSection === "led" ? "bg-primary text-black" : "text-white"}`}
         >
-          <Lightbulb className="h-4 w-4 text-primary" /> Đèn LED
-        </a>
+          <Lightbulb
+            className={`h-4 w-4 ${activeSection === "led" ? "text-black" : "text-primary"}`}
+          />{" "}
+          Đèn LED
+        </button>
       </nav>
 
       <div className="mx-auto grid max-w-[1500px] lg:grid-cols-[230px_1fr]">
-        <aside className="hidden min-h-[calc(100vh-64px)] border-r border-white/10 bg-[#0f1012] p-4 lg:block">
+        <aside className="sticky top-0 hidden h-screen self-start overflow-y-auto border-r border-white/10 bg-[#0f1012] p-4 lg:block">
           <p className="px-3 pb-3 text-[9px] font-bold uppercase tracking-[0.24em] text-steel">
             Quản trị
           </p>
-          <button className="flex w-full items-center gap-3 bg-primary px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider text-black">
+          <button
+            type="button"
+            onClick={() => scrollToDashboardSection("overview")}
+            className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider ${activeSection === "overview" ? "bg-primary text-black" : "text-muted-foreground hover:bg-white/5 hover:text-white"}`}
+          >
             <LayoutDashboard className="h-4 w-4" /> Tổng quan
           </button>
-          <a
-            href="#inventory"
-            className="mt-1 flex items-center gap-3 px-3 py-2.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-white/5 hover:text-white"
+          <button
+            type="button"
+            onClick={() => scrollToDashboardSection("inventory")}
+            className={`mt-1 flex w-full items-center gap-3 px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider ${activeSection === "inventory" ? "bg-primary text-black" : "text-muted-foreground hover:bg-white/5 hover:text-white"}`}
           >
             <BikeIcon className="h-4 w-4" /> Kho xe
-          </a>
+          </button>
           <button
             onClick={startNew}
             className="mt-1 flex w-full items-center gap-3 px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-white/5 hover:text-white"
           >
             <Plus className="h-4 w-4" /> Đăng xe mới
           </button>
-          <a
-            href="#led-services"
-            className="mt-1 flex items-center gap-3 px-3 py-2.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-white/5 hover:text-white"
+          <button
+            type="button"
+            onClick={() => scrollToDashboardSection("led-services")}
+            className={`mt-1 flex w-full items-center gap-3 px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider ${activeSection === "led" ? "bg-primary text-black" : "text-muted-foreground hover:bg-white/5 hover:text-white"}`}
           >
-            <Lightbulb className="h-4 w-4" /> Dịch vụ LED
-          </a>
+            <Lightbulb className="h-4 w-4" /> Dịch vụ đèn LED
+          </button>
           <button
             onClick={startNewLed}
             className="mt-1 flex w-full items-center gap-3 px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-white/5 hover:text-white"
           >
-            <Plus className="h-4 w-4" /> Đăng hạng mục LED
+            <Plus className="h-4 w-4" /> Thêm dịch vụ LED
           </button>
         </aside>
 
-        <main className="min-w-0 p-4 sm:p-6 lg:p-8">
+        <main id="overview" className="min-w-0 scroll-mt-14 p-4 sm:p-6 lg:p-8">
           {(bikeLoadError || ledLoadError) && (
             <div className="mb-5 border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-300">
               Không kết nối được dữ liệu máy chủ. {bikeLoadError || ledLoadError}
@@ -530,7 +584,7 @@ function Dashboard() {
             <Stat
               label="Dịch vụ đèn LED"
               value={String(services.length)}
-              sub="Hạng mục đang hiển thị"
+              sub="Dịch vụ đang hiển thị"
             />
             <Stat
               label="Hãng xe đang có"
@@ -575,7 +629,7 @@ function Dashboard() {
                   <span>
                     <strong className="block text-sm uppercase">Đăng dịch vụ đèn LED</strong>
                     <small className="mt-1 block text-[11px] text-muted-foreground">
-                      Hạng mục, giá, bảo hành và hình ảnh
+                      Loại dịch vụ, giá, bảo hành và hình ảnh
                     </small>
                   </span>
                 </button>
@@ -689,14 +743,6 @@ function Dashboard() {
                         })}
                       </small>
                     </Field>
-                    <Field label="Số km đã đi">
-                      <input
-                        type="number"
-                        min="0"
-                        value={form.odo}
-                        onChange={(e) => setForm({ ...form, odo: e.target.value })}
-                      />
-                    </Field>
                     <Field label="Phân khối (cc)">
                       <input
                         type="number"
@@ -712,25 +758,11 @@ function Dashboard() {
                         placeholder="15,4 HP / 8.500 rpm"
                       />
                     </Field>
-                    <Field label="Hộp số">
-                      <input
-                        value={form.transmission}
-                        onChange={(e) => setForm({ ...form, transmission: e.target.value })}
-                        placeholder="CVT / 6 cấp"
-                      />
-                    </Field>
                     <Field label="Khối lượng">
                       <input
                         value={form.weight}
                         onChange={(e) => setForm({ ...form, weight: e.target.value })}
                         placeholder="134 kg"
-                      />
-                    </Field>
-                    <Field label="Hệ thống phanh">
-                      <input
-                        value={form.brake}
-                        onChange={(e) => setForm({ ...form, brake: e.target.value })}
-                        placeholder="ABS 2 kênh"
                       />
                     </Field>
                     <Field label="Bảo hành">
@@ -770,9 +802,9 @@ function Dashboard() {
                         <ImagePlus className="mx-auto h-8 w-8 text-primary" />
                         <strong className="mt-3 block text-sm text-white">Tải ảnh xe lên</strong>
                         <small className="mt-1 block text-[10px] leading-5 text-steel">
-                          Tối đa 8 ảnh · tự thu về 1440px · WebP 80%
+                          Tối đa 8 ảnh · tự làm nhẹ nhưng vẫn giữ độ nét
                           <br />
-                          Nhẹ hơn nhưng vẫn sắc nét
+                          Ảnh được chuẩn hóa để website tải nhanh
                         </small>
                       </span>
                     </label>
@@ -886,7 +918,7 @@ function Dashboard() {
                   className="grid gap-6 p-4 sm:p-6 lg:grid-cols-[1fr_340px]"
                 >
                   <div className="grid content-start gap-4 sm:grid-cols-2">
-                    <Field label="Tên hạng mục *" className="sm:col-span-2">
+                    <Field label="Tên dịch vụ *" className="sm:col-span-2">
                       <input
                         value={ledForm.name}
                         onChange={(event) => setLedForm({ ...ledForm, name: event.target.value })}
@@ -993,9 +1025,9 @@ function Dashboard() {
                           Tải ảnh dịch vụ lên
                         </strong>
                         <small className="mt-1 block text-[10px] leading-5 text-steel">
-                          Tối đa 8 ảnh · tự thu về 1440px · WebP 80%
+                          Tối đa 8 ảnh · tự làm nhẹ nhưng vẫn giữ độ nét
                           <br />
-                          Xóa hạng mục sẽ xóa dữ liệu ảnh lưu kèm
+                          Xóa dịch vụ sẽ xóa luôn các ảnh lưu kèm
                         </small>
                       </span>
                     </label>
@@ -1081,7 +1113,7 @@ function Dashboard() {
             </div>
           )}
 
-          <section id="inventory" className="mt-6 border border-white/10 bg-[#121316]">
+          <section id="inventory" className="mt-6 scroll-mt-14 border border-white/10 bg-[#121316]">
             <div className="flex flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-xl text-white">DANH SÁCH XE</h2>
@@ -1151,7 +1183,7 @@ function Dashboard() {
                           <div>
                             <strong className="block text-white">{bike.name}</strong>
                             <span className="text-[10px] text-steel">
-                              {bike.year} · {bike.engine}cc · {bike.odo.toLocaleString("vi-VN")} km
+                              {bike.year} · {bike.engine}cc · {bike.condition}
                             </span>
                           </div>
                         </div>
@@ -1199,12 +1231,15 @@ function Dashboard() {
             </div>
           </section>
 
-          <section id="led-services" className="mt-6 border border-white/10 bg-[#121316]">
+          <section
+            id="led-services"
+            className="mt-6 scroll-mt-14 border border-white/10 bg-[#121316]"
+          >
             <div className="flex flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-xl text-white">DỊCH VỤ ĐÈN LED</h2>
                 <p className="text-[10px] uppercase tracking-wider text-steel">
-                  {services.length} hạng mục đang hiển thị
+                  {services.length} dịch vụ đang hiển thị
                 </p>
               </div>
               <div className="flex gap-2">
@@ -1224,7 +1259,7 @@ function Dashboard() {
                   <Lightbulb className="mx-auto h-8 w-8 text-primary" />
                   <strong className="mt-3 block text-sm text-white">Chưa có dịch vụ đèn LED</strong>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Thêm hạng mục đầu tiên để khách xem thông tin và hình ảnh thi công.
+                    Thêm dịch vụ đầu tiên để khách xem thông tin và hình ảnh thi công.
                   </p>
                   <button
                     type="button"
