@@ -19,7 +19,7 @@ export const bikeSchema = z.object({
   slug: z.string().regex(/^[a-z0-9-]{3,120}$/),
   name: z.string().trim().min(2).max(160),
   brand: z.string().trim().min(1).max(60),
-  type: z.enum(["Tay ga", "Côn tay", "Xe số", "Mô tô"]),
+  type: z.string().trim().min(1).max(60),
   year: z
     .number()
     .int()
@@ -30,6 +30,7 @@ export const bikeSchema = z.object({
   priceBand: z.enum(["head", "small", "medium", "large"]).optional(),
   priceLabel: z.string().max(40).optional(),
   engine: z.number().int().positive().max(3000),
+  machine: z.string().trim().min(1).max(60).default("Máy zin"),
   condition: z.enum(["Mới", "Đã qua sử dụng"]),
   cover: imageSchema,
   gallery: z.array(imageSchema).min(1).max(8),
@@ -53,3 +54,17 @@ export const ledServiceSchema = z.object({
 
 export const resetBikesSchema = z.object({ items: z.array(bikeSchema).max(200) });
 export const resetLedSchema = z.object({ items: z.array(ledServiceSchema).max(200) });
+
+export const vehicleOptionCreateSchema = z.object({
+  kind: z.enum(["brand", "type", "machine"]),
+  name: z.string().trim().min(1).max(60),
+});
+
+export const vehicleOptionUpdateSchema = z.object({
+  slug: z.string().trim().min(1).max(120),
+  name: z.string().trim().min(1).max(60),
+});
+
+export const vehicleOptionDeleteSchema = z.object({
+  slug: z.string().trim().min(1).max(120),
+});

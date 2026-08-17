@@ -203,7 +203,7 @@ function BikeDetail() {
                   </p>
                   <h1 className="mt-2 text-4xl leading-none text-white sm:text-5xl">{bike.name}</h1>
                   <p className="mt-3 text-xs uppercase tracking-[0.16em] text-steel">
-                    Đời {bike.year} · {bike.engine}cc · {bike.condition}
+                    Đời {bike.year} · {bike.machine || "Máy zin"} · {bike.condition}
                   </p>
                   <div className="my-6 border-y border-white/10 py-5">
                     <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-steel">

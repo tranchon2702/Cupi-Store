@@ -12,14 +12,17 @@ import {
   Pencil,
   Plus,
   Search,
+  Settings2,
   Trash2,
   X,
 } from "lucide-react";
-import { BIKE_BRANDS, BIKE_TYPES, getPublicPrice, type Bike } from "@/data/bikes";
+import { getPublicPrice, type Bike } from "@/data/bikes";
 import { LED_CATEGORIES, type LedService } from "@/data/led-services";
+import { optionNames, type VehicleOption, type VehicleOptionKind } from "@/data/vehicle-options";
 import dashboardLogo from "@/assets/logo-web.png";
 import { useBikeInventory } from "@/hooks/use-bike-inventory";
 import { useLedCatalog } from "@/hooks/use-led-catalog";
+import { useVehicleOptions } from "@/hooks/use-vehicle-options";
 import { optimizeImages } from "@/lib/image-utils";
 import {
   formatPublicPrice,
@@ -46,6 +49,7 @@ type BikeForm = {
   priceMillion: string;
   priceBandMode: "head" | "auto";
   engine: string;
+  machine: string;
   condition: Bike["condition"];
   description: string;
   tags: string;
@@ -77,6 +81,7 @@ const emptyForm = (): BikeForm => ({
   priceMillion: "1",
   priceBandMode: "head",
   engine: "150",
+  machine: "Máy zin",
   condition: "Đã qua sử dụng",
   description: "",
   tags: "ABS, Smartkey",
@@ -110,6 +115,13 @@ const slugify = (value: string) =>
 function Dashboard() {
   const { inventory, error: bikeLoadError, upsertBike, removeBike } = useBikeInventory();
   const { services, error: ledLoadError, upsertService, removeService } = useLedCatalog();
+  const {
+    options: vehicleOptions,
+    error: optionLoadError,
+    addOption,
+    renameOption,
+    removeOption,
+  } = useVehicleOptions();
   const [authState, setAuthState] = useState<"loading" | "authenticated" | "guest">("loading");
   const [form, setForm] = useState<BikeForm>(emptyForm);
   const [query, setQuery] = useState("");
@@ -127,6 +139,16 @@ function Dashboard() {
   const [saving, setSaving] = useState(false);
   const [ledSaving, setLedSaving] = useState(false);
   const [activeSection, setActiveSection] = useState<"overview" | "inventory" | "led">("overview");
+  const [showOptionManager, setShowOptionManager] = useState(false);
+  const [optionDrafts, setOptionDrafts] = useState<Record<VehicleOptionKind, string>>({
+    brand: "",
+    type: "",
+    machine: "",
+  });
+  const [editingOption, setEditingOption] = useState<{ slug: string; name: string } | null>(null);
+  const [deletingOption, setDeletingOption] = useState("");
+  const [optionNotice, setOptionNotice] = useState("");
+  const [optionSaving, setOptionSaving] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/session", { credentials: "same-origin" })
@@ -208,6 +230,7 @@ function Dashboard() {
       priceMillion: String(priceMillion ?? 1),
       priceBandMode: bike.priceBand && bike.priceBand !== "head" ? "auto" : "head",
       engine: String(bike.engine),
+      machine: bike.machine || "Máy zin",
       condition: bike.condition,
       description: bike.description,
       tags: bike.tags.join(", "),
@@ -225,7 +248,12 @@ function Dashboard() {
   };
 
   const startNew = () => {
-    const nextForm = emptyForm();
+    const nextForm = {
+      ...emptyForm(),
+      brand: optionNames(vehicleOptions, "brand")[0] || "",
+      type: optionNames(vehicleOptions, "type")[0] || "",
+      machine: optionNames(vehicleOptions, "machine")[0] || "",
+    };
     setForm(nextForm);
     setInitialForm(JSON.stringify(nextForm));
     setShowEditor(true);
@@ -277,6 +305,7 @@ function Dashboard() {
       priceBand,
       priceLabel: formatVehiclePrice({ priceMillion, priceBand }),
       engine: Number(form.engine),
+      machine: form.machine,
       condition: form.condition,
       cover: form.images[0]!,
       gallery: form.images,
@@ -451,6 +480,51 @@ function Dashboard() {
     }
   };
 
+  const createVehicleOption = async (kind: VehicleOptionKind) => {
+    const name = optionDrafts[kind].trim();
+    if (!name) return;
+    setOptionSaving(true);
+    setOptionNotice("");
+    try {
+      await addOption(kind, name);
+      setOptionDrafts((current) => ({ ...current, [kind]: "" }));
+      setOptionNotice(`Đã thêm “${name}”.`);
+    } catch (reason) {
+      setOptionNotice(reason instanceof Error ? reason.message : "Không thể thêm danh mục.");
+    } finally {
+      setOptionSaving(false);
+    }
+  };
+
+  const saveVehicleOptionName = async () => {
+    if (!editingOption?.name.trim()) return;
+    setOptionSaving(true);
+    setOptionNotice("");
+    try {
+      await renameOption(editingOption.slug, editingOption.name.trim());
+      setOptionNotice("Đã đổi tên và cập nhật các xe đang sử dụng.");
+      setEditingOption(null);
+    } catch (reason) {
+      setOptionNotice(reason instanceof Error ? reason.message : "Không thể đổi tên danh mục.");
+    } finally {
+      setOptionSaving(false);
+    }
+  };
+
+  const confirmRemoveVehicleOption = async (slug: string) => {
+    setOptionSaving(true);
+    setOptionNotice("");
+    try {
+      await removeOption(slug);
+      setDeletingOption("");
+      setOptionNotice("Đã xóa danh mục.");
+    } catch (reason) {
+      setOptionNotice(reason instanceof Error ? reason.message : "Không thể xóa danh mục.");
+    } finally {
+      setOptionSaving(false);
+    }
+  };
+
   if (authState === "loading") return <DashboardLoading />;
   if (authState === "guest")
     return <AdminLogin onAuthenticated={() => setAuthState("authenticated")} />;
@@ -555,9 +629,9 @@ function Dashboard() {
         </aside>
 
         <main id="overview" className="min-w-0 scroll-mt-14 p-4 sm:p-6 lg:p-8">
-          {(bikeLoadError || ledLoadError) && (
+          {(bikeLoadError || ledLoadError || optionLoadError) && (
             <div className="mb-5 border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-300">
-              Không kết nối được dữ liệu máy chủ. {bikeLoadError || ledLoadError}
+              Không kết nối được dữ liệu máy chủ. {bikeLoadError || ledLoadError || optionLoadError}
             </div>
           )}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -571,6 +645,13 @@ function Dashboard() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowOptionManager((current) => !current)}
+                className="flex h-11 items-center justify-center gap-2 border border-white/15 px-5 text-xs font-bold uppercase tracking-wider text-white hover:border-primary hover:text-primary"
+              >
+                <Settings2 className="h-4 w-4" /> Danh mục xe
+              </button>
               <button
                 onClick={startNewLed}
                 className="flex h-11 items-center justify-center gap-2 border border-primary px-5 text-xs font-bold uppercase tracking-wider text-primary"
@@ -603,6 +684,30 @@ function Dashboard() {
               sub="Hãng hiện có xe trong kho"
             />
           </div>
+
+          {showOptionManager && (
+            <VehicleOptionManager
+              options={vehicleOptions}
+              drafts={optionDrafts}
+              editing={editingOption}
+              deletingSlug={deletingOption}
+              notice={optionNotice}
+              saving={optionSaving}
+              onDraftChange={(kind, value) =>
+                setOptionDrafts((current) => ({ ...current, [kind]: value }))
+              }
+              onAdd={(kind) => void createVehicleOption(kind)}
+              onStartEdit={(slug, name) => setEditingOption({ slug, name })}
+              onEditChange={(name) =>
+                setEditingOption((current) => (current ? { ...current, name } : null))
+              }
+              onSaveEdit={() => void saveVehicleOptionName()}
+              onCancelEdit={() => setEditingOption(null)}
+              onAskDelete={setDeletingOption}
+              onConfirmDelete={(slug) => void confirmRemoveVehicleOption(slug)}
+              onCancelDelete={() => setDeletingOption("")}
+            />
+          )}
 
           {!inventory.length && !services.length && (
             <section className="mt-5 border border-primary/25 bg-primary/[0.04] p-4 sm:p-5">
@@ -694,7 +799,7 @@ function Dashboard() {
                         value={form.brand}
                         onChange={(e) => setForm({ ...form, brand: e.target.value })}
                       >
-                        {BIKE_BRANDS.map((brand) => (
+                        {optionNames(vehicleOptions, "brand").map((brand) => (
                           <option key={brand}>{brand}</option>
                         ))}
                       </select>
@@ -704,7 +809,7 @@ function Dashboard() {
                         value={form.type}
                         onChange={(e) => setForm({ ...form, type: e.target.value as Bike["type"] })}
                       >
-                        {BIKE_TYPES.map((type) => (
+                        {optionNames(vehicleOptions, "type").map((type) => (
                           <option key={type}>{type}</option>
                         ))}
                       </select>
@@ -799,6 +904,16 @@ function Dashboard() {
                         value={form.engine}
                         onChange={(e) => setForm({ ...form, engine: e.target.value })}
                       />
+                    </Field>
+                    <Field label="Máy">
+                      <select
+                        value={form.machine}
+                        onChange={(event) => setForm({ ...form, machine: event.target.value })}
+                      >
+                        {optionNames(vehicleOptions, "machine").map((machine) => (
+                          <option key={machine}>{machine}</option>
+                        ))}
+                      </select>
                     </Field>
                     <Field label="Công suất">
                       <input
@@ -1232,7 +1347,7 @@ function Dashboard() {
                           <div>
                             <strong className="block text-white">{bike.name}</strong>
                             <span className="text-[10px] text-steel">
-                              {bike.year} · {bike.engine}cc · {bike.condition}
+                              {bike.year} · {bike.machine || "Máy zin"} · {bike.condition}
                             </span>
                           </div>
                         </div>
@@ -1379,6 +1494,184 @@ function Dashboard() {
         </main>
       </div>
     </div>
+  );
+}
+
+const VEHICLE_OPTION_GROUPS: Array<{
+  kind: VehicleOptionKind;
+  title: string;
+  placeholder: string;
+}> = [
+  { kind: "brand", title: "Hãng xe", placeholder: "Ví dụ: Ducati" },
+  { kind: "type", title: "Loại xe", placeholder: "Ví dụ: Xe điện" },
+  { kind: "machine", title: "Máy", placeholder: "Ví dụ: 62zz" },
+];
+
+function VehicleOptionManager({
+  options,
+  drafts,
+  editing,
+  deletingSlug,
+  notice,
+  saving,
+  onDraftChange,
+  onAdd,
+  onStartEdit,
+  onEditChange,
+  onSaveEdit,
+  onCancelEdit,
+  onAskDelete,
+  onConfirmDelete,
+  onCancelDelete,
+}: {
+  options: VehicleOption[];
+  drafts: Record<VehicleOptionKind, string>;
+  editing: { slug: string; name: string } | null;
+  deletingSlug: string;
+  notice: string;
+  saving: boolean;
+  onDraftChange: (kind: VehicleOptionKind, value: string) => void;
+  onAdd: (kind: VehicleOptionKind) => void;
+  onStartEdit: (slug: string, name: string) => void;
+  onEditChange: (name: string) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  onAskDelete: (slug: string) => void;
+  onConfirmDelete: (slug: string) => void;
+  onCancelDelete: () => void;
+}) {
+  return (
+    <section className="mt-5 border border-primary/25 bg-[#121316] p-4 sm:p-5">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
+          Danh mục dùng chung
+        </p>
+        <h2 className="mt-1 text-2xl text-white">HÃNG XE · LOẠI XE · MÁY</h2>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          Đổi tên sẽ cập nhật các xe đang dùng. Chỉ xóa được mục chưa gán cho xe nào.
+        </p>
+      </div>
+
+      {notice && (
+        <p className="mt-4 border border-primary/25 bg-primary/5 p-3 text-xs text-primary">
+          {notice}
+        </p>
+      )}
+
+      <div className="mt-5 grid gap-4 xl:grid-cols-3">
+        {VEHICLE_OPTION_GROUPS.map((group) => (
+          <div key={group.kind} className="border border-white/10 bg-black/20 p-3">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-white">{group.title}</h3>
+            <div className="mt-3 flex gap-2">
+              <input
+                value={drafts[group.kind]}
+                onChange={(event) => onDraftChange(group.kind, event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    onAdd(group.kind);
+                  }
+                }}
+                placeholder={group.placeholder}
+                className="h-10 min-w-0 flex-1 border border-white/10 bg-background px-3 text-xs outline-none focus:border-primary"
+              />
+              <button
+                type="button"
+                disabled={saving || !drafts[group.kind].trim()}
+                onClick={() => onAdd(group.kind)}
+                className="grid h-10 w-10 shrink-0 place-items-center bg-primary text-black disabled:opacity-40"
+                aria-label={`Thêm ${group.title}`}
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {options
+                .filter((option) => option.kind === group.kind)
+                .map((option) => (
+                  <div
+                    key={option.slug}
+                    className="flex min-h-10 items-center gap-2 border border-white/10 px-2"
+                  >
+                    {editing?.slug === option.slug ? (
+                      <>
+                        <input
+                          value={editing.name}
+                          onChange={(event) => onEditChange(event.target.value)}
+                          className="h-8 min-w-0 flex-1 bg-transparent text-xs text-white outline-none"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          disabled={saving || !editing.name.trim()}
+                          onClick={onSaveEdit}
+                          className="p-1.5 text-primary disabled:opacity-40"
+                          aria-label="Lưu tên"
+                        >
+                          <Check className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={onCancelEdit}
+                          className="p-1.5 text-steel hover:text-white"
+                          aria-label="Hủy sửa"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </>
+                    ) : deletingSlug === option.slug ? (
+                      <>
+                        <span className="min-w-0 flex-1 truncate text-xs text-red-300">
+                          Xóa “{option.name}”?
+                        </span>
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => onConfirmDelete(option.slug)}
+                          className="px-2 py-1 text-[10px] font-bold uppercase text-red-300"
+                        >
+                          Xác nhận
+                        </button>
+                        <button
+                          type="button"
+                          onClick={onCancelDelete}
+                          className="p-1.5 text-steel hover:text-white"
+                          aria-label="Hủy xóa"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="min-w-0 flex-1 truncate text-xs text-white">
+                          {option.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onStartEdit(option.slug, option.name)}
+                          className="p-1.5 text-steel hover:text-primary"
+                          aria-label={`Sửa ${option.name}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onAskDelete(option.slug)}
+                          className="p-1.5 text-steel hover:text-red-300"
+                          aria-label={`Xóa ${option.name}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

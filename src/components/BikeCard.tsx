@@ -34,7 +34,7 @@ export function BikeCard({ bike }: { bike: Bike }) {
         </div>
 
         <div className="grid grid-cols-2 gap-2 border-y border-border py-3 text-center">
-          <Spec label="Phân khối" value={`${bike.engine}cc`} />
+          <Spec label="Máy" value={bike.machine || "Máy zin"} />
           <Spec label="Đời" value={String(bike.year)} />
         </div>
 

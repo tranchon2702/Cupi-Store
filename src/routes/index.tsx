@@ -4,8 +4,9 @@ import { ArrowRight, CheckCircle2, Gauge, Search, SlidersHorizontal } from "luci
 import banner from "@/assets/cupi-garage-banner.jpg";
 import { BikeCard } from "@/components/BikeCard";
 import { SiteFooter, SiteHeader } from "@/components/SiteChrome";
-import { BIKE_BRANDS, BIKE_TYPES } from "@/data/bikes";
+import { optionNames } from "@/data/vehicle-options";
 import { useBikeInventory } from "@/hooks/use-bike-inventory";
+import { useVehicleOptions } from "@/hooks/use-vehicle-options";
 import { matchesPriceFilter, PRICE_FILTERS } from "@/lib/price-utils";
 import { goToHomeSection, restoreHomeSection } from "@/lib/navigation";
 
@@ -35,9 +36,10 @@ const SORTS = [
 
 function Home() {
   const { inventory } = useBikeInventory();
+  const { options } = useVehicleOptions();
   const [type, setType] = useState("Tất cả");
   const [brand, setBrand] = useState("Tất cả");
-  const [engine, setEngine] = useState("Tất cả");
+  const [machine, setMachine] = useState("Tất cả");
   const [price, setPrice] = useState("all");
   const [sort, setSort] = useState("new");
   const [query, setQuery] = useState("");
@@ -51,31 +53,24 @@ function Home() {
   const list = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("vi");
     const filtered = inventory.filter((bike) => {
-      const inEngine =
-        engine === "Tất cả" ||
-        (engine === "Dưới 150cc"
-          ? bike.engine < 150
-          : engine === "150–175cc"
-            ? bike.engine >= 150 && bike.engine <= 175
-            : bike.engine > 175);
       return (
         (type === "Tất cả" || bike.type === type) &&
         (brand === "Tất cả" || bike.brand === brand) &&
+        (machine === "Tất cả" || (bike.machine || "Máy zin") === machine) &&
         matchesPriceFilter(bike, price) &&
-        inEngine &&
         (!normalized ||
-          `${bike.name} ${bike.brand} ${bike.tags.join(" ")}`
+          `${bike.name} ${bike.brand} ${bike.machine || "Máy zin"} ${bike.tags.join(" ")}`
             .toLocaleLowerCase("vi")
             .includes(normalized))
       );
     });
     return [...filtered].sort((a, b) => (sort === "year" ? b.year - a.year : 0));
-  }, [inventory, type, brand, engine, price, sort, query]);
+  }, [inventory, type, brand, machine, price, sort, query]);
 
   const resetFilters = () => {
     setType("Tất cả");
     setBrand("Tất cả");
-    setEngine("Tất cả");
+    setMachine("Tất cả");
     setPrice("all");
     setQuery("");
   };
@@ -178,13 +173,13 @@ function Home() {
           <div className="mt-5 grid gap-5 lg:grid-cols-[1.4fr_1fr]">
             <FilterButtons
               label="Hãng xe"
-              options={["Tất cả", ...BIKE_BRANDS]}
+              options={["Tất cả", ...optionNames(options, "brand")]}
               value={brand}
               onChange={setBrand}
             />
             <FilterButtons
               label="Loại xe"
-              options={["Tất cả", ...BIKE_TYPES]}
+              options={["Tất cả", ...optionNames(options, "type")]}
               value={type}
               onChange={setType}
             />
@@ -192,10 +187,10 @@ function Home() {
 
           <div className="mt-5 grid gap-5 border-t border-white/10 pt-5 lg:grid-cols-[1fr_1.35fr_auto] lg:items-end">
             <FilterButtons
-              label="Phân khối"
-              options={["Tất cả", "Dưới 150cc", "150–175cc", "Trên 175cc"]}
-              value={engine}
-              onChange={setEngine}
+              label="Máy"
+              options={["Tất cả", ...optionNames(options, "machine")]}
+              value={machine}
+              onChange={setMachine}
             />
             <FilterButtons
               label="Khoảng giá"

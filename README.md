@@ -8,6 +8,8 @@ Website mua bán, thu mua xe máy cũ và dịch vụ đèn LED xe máy tại Bi
 - Trang chi tiết xe với nhiều ảnh, mô tả và thông tin kỹ thuật.
 - Danh mục dịch vụ đèn LED xe máy.
 - Dashboard quản trị đăng nhập riêng để thêm, sửa và xóa nội dung.
+- Hãng xe, loại xe và cấu hình máy là danh mục quản trị được; cấu hình máy hiển thị trên card và
+  dùng làm bộ lọc ngoài website.
 - Giá xe công khai dạng đầu giá (`3X triệu`, `3X nhỏ/trung/lớn`) hoặc `Liên hệ`;
   mốc giá nội bộ chỉ dùng cho bộ lọc và không hiển thị cho khách.
 - Ảnh tải lên được tối ưu WebP, lưu riêng trên VPS và tự dọn khi thay hoặc xóa sản phẩm.

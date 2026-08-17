@@ -7,28 +7,18 @@ import detail2 from "@/assets/detail-2.jpg";
 import detail3 from "@/assets/detail-3.jpg";
 import { formatVehiclePrice, type VehiclePriceBand } from "@/lib/price-utils";
 
-export const BIKE_BRANDS = [
-  "Honda",
-  "Yamaha",
-  "Suzuki",
-  "Piaggio",
-  "Vespa",
-  "SYM",
-  "Kymco",
-] as const;
-export const BIKE_TYPES = ["Tay ga", "Côn tay", "Xe số", "Mô tô"] as const;
-
 export type Bike = {
   slug: string;
   name: string;
   brand: string;
-  type: (typeof BIKE_TYPES)[number];
+  type: string;
   year: number;
   price: number;
   priceMillion?: number | null;
   priceBand?: VehiclePriceBand;
   priceLabel?: string;
   engine: number;
+  machine?: string;
   condition: "Mới" | "Đã qua sử dụng";
   cover: string;
   gallery: string[];

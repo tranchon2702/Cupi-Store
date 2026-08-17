@@ -14,10 +14,16 @@ export type VehiclePriceSource = PriceSource & {
 export const PRICE_FILTERS = [
   { id: "all", label: "Tất cả" },
   { id: "under-10", label: "Dưới 10 triệu", min: 1, max: 9 },
-  { id: "10-29", label: "1X–2X", min: 10, max: 29 },
-  { id: "30-49", label: "3X–4X", min: 30, max: 49 },
-  { id: "50-69", label: "5X–6X", min: 50, max: 69 },
-  { id: "70-100", label: "7X–1XX", min: 70, max: 100 },
+  { id: "1x", label: "1X", min: 10, max: 19 },
+  { id: "2x", label: "2X", min: 20, max: 29 },
+  { id: "3x", label: "3X", min: 30, max: 39 },
+  { id: "4x", label: "4X", min: 40, max: 49 },
+  { id: "5x", label: "5X", min: 50, max: 59 },
+  { id: "6x", label: "6X", min: 60, max: 69 },
+  { id: "7x", label: "7X", min: 70, max: 79 },
+  { id: "8x", label: "8X", min: 80, max: 89 },
+  { id: "9x", label: "9X", min: 90, max: 99 },
+  { id: "1xx", label: "1XX", min: 100, max: 100 },
   { id: "contact", label: "Liên hệ" },
 ] as const;
 
