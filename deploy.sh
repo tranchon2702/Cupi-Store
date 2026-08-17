@@ -3,6 +3,7 @@ set -euo pipefail
 
 APP_DIR="/home/deploy/apps/cupi-store"
 cd "$APP_DIR"
+export CUPI_NODE_INTERPRETER="$(command -v node)"
 
 git pull --ff-only
 bun install --frozen-lockfile

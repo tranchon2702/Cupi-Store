@@ -4,6 +4,7 @@ module.exports = {
       name: "cupi-store",
       cwd: __dirname,
       script: ".output/server/index.mjs",
+      interpreter: process.env.CUPI_NODE_INTERPRETER || "node",
       node_args: "--env-file=.env",
       instances: 1,
       exec_mode: "fork",
