@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { BIKE_BRANDS, BIKE_TYPES, getPublicPrice, type Bike } from "@/data/bikes";
 import { LED_CATEGORIES, type LedService } from "@/data/led-services";
+import dashboardLogo from "@/assets/logo-web.png";
 import { useBikeInventory } from "@/hooks/use-bike-inventory";
 import { useLedCatalog } from "@/hooks/use-led-catalog";
 import { optimizeImages } from "@/lib/image-utils";
@@ -413,15 +414,11 @@ function Dashboard() {
       <header className="border-b border-white/10 bg-[#101114]">
         <div className="mx-auto flex h-16 max-w-[1500px] items-center justify-between px-4 sm:px-6">
           <Link to="/" className="flex items-center gap-3">
-            <img src="/cupi-favicon-v3.svg" alt="" className="h-10 w-10 object-contain" />
-            <span>
-              <strong className="block font-display text-xl tracking-wider text-white">
-                CU PI STORE
-              </strong>
-              <small className="block text-[8px] uppercase tracking-[0.25em] text-primary">
-                Quản trị cửa hàng
-              </small>
-            </span>
+            <img
+              src={dashboardLogo}
+              alt="CU PI STORE"
+              className="h-10 w-auto max-w-[170px] object-contain sm:h-12 sm:max-w-[210px]"
+            />
           </Link>
           <div className="flex items-center gap-3">
             <Link
@@ -1351,7 +1348,11 @@ function AdminLogin({ onAuthenticated }: { onAuthenticated: () => void }) {
     <div className="grid-tech grid min-h-screen place-items-center bg-[#070809] px-4 py-10">
       <div className="w-full max-w-md border border-primary/25 bg-[#111215] p-5 shadow-2xl sm:p-8">
         <Link to="/" className="mx-auto block w-fit">
-          <img src="/cupi-logo.png" alt="CU PI STORE" className="h-16 w-auto object-contain" />
+          <img
+            src={dashboardLogo}
+            alt="CU PI STORE"
+            className="h-20 w-auto max-w-full object-contain"
+          />
         </Link>
         <div className="mt-6 text-center">
           <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary">
