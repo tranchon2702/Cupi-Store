@@ -58,6 +58,12 @@ export const formatPublicPrice = (item: PriceSource) => {
   return million ? `${million}trXXX` : "Liên hệ";
 };
 
+export const inferVehiclePriceBand = (million: number | null): VehiclePriceBand => {
+  if (million === null || million < 10 || million >= 100) return "head";
+  const position = million % 10;
+  return position <= 3 ? "small" : position <= 6 ? "medium" : "large";
+};
+
 export const formatVehiclePrice = (item: VehiclePriceSource) => {
   const million = getPriceMillion(item);
   if (million === null) return "Liên hệ";

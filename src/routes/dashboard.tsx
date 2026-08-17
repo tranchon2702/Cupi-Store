@@ -25,8 +25,8 @@ import {
   formatPublicPrice,
   formatVehiclePrice,
   getPriceMillion,
+  inferVehiclePriceBand,
   type PriceMode,
-  type VehiclePriceBand,
 } from "@/lib/price-utils";
 
 export const Route = createFileRoute("/dashboard")({
@@ -44,7 +44,7 @@ type BikeForm = {
   year: string;
   priceMode: PriceMode;
   priceMillion: string;
-  priceBand: VehiclePriceBand;
+  priceBandMode: "head" | "auto";
   engine: string;
   condition: Bike["condition"];
   description: string;
@@ -75,7 +75,7 @@ const emptyForm = (): BikeForm => ({
   year: String(new Date().getFullYear()),
   priceMode: "range",
   priceMillion: "1",
-  priceBand: "head",
+  priceBandMode: "head",
   engine: "150",
   condition: "Đã qua sử dụng",
   description: "",
@@ -206,7 +206,7 @@ function Dashboard() {
       year: String(bike.year),
       priceMode: priceMillion === null ? "contact" : "range",
       priceMillion: String(priceMillion ?? 1),
-      priceBand: bike.priceBand ?? "head",
+      priceBandMode: bike.priceBand && bike.priceBand !== "head" ? "auto" : "head",
       engine: String(bike.engine),
       condition: bike.condition,
       description: bike.description,
@@ -250,6 +250,7 @@ function Dashboard() {
 
   const saveBike = async (closeAfter = false) => {
     const priceMillion = form.priceMode === "range" ? Number(form.priceMillion) : null;
+    const priceBand = form.priceBandMode === "auto" ? inferVehiclePriceBand(priceMillion) : "head";
     if (!form.name.trim() || !form.images.length) {
       setNotice("Vui lòng nhập tên và ít nhất một ảnh xe.");
       return false;
@@ -273,8 +274,8 @@ function Dashboard() {
       year: Number(form.year),
       price: 0,
       priceMillion,
-      priceBand: form.priceBand,
-      priceLabel: formatVehiclePrice({ priceMillion, priceBand: form.priceBand }),
+      priceBand,
+      priceLabel: formatVehiclePrice({ priceMillion, priceBand }),
       engine: Number(form.engine),
       condition: form.condition,
       cover: form.images[0]!,
@@ -761,7 +762,12 @@ function Dashboard() {
                         {formatVehiclePrice({
                           priceMillion:
                             form.priceMode === "range" ? Number(form.priceMillion) : null,
-                          priceBand: form.priceBand,
+                          priceBand:
+                            form.priceBandMode === "auto"
+                              ? inferVehiclePriceBand(
+                                  form.priceMode === "range" ? Number(form.priceMillion) : null,
+                                )
+                              : "head",
                         })}
                       </small>
                     </Field>
@@ -770,21 +776,19 @@ function Dashboard() {
                       Number(form.priceMillion) < 100 && (
                         <Field label="Cách ghi công khai">
                           <select
-                            value={form.priceBand}
+                            value={form.priceBandMode}
                             onChange={(event) =>
                               setForm({
                                 ...form,
-                                priceBand: event.target.value as VehiclePriceBand,
+                                priceBandMode: event.target.value as "head" | "auto",
                               })
                             }
                           >
                             <option value="head">Chỉ hiện đầu — 3X triệu</option>
-                            <option value="small">Mức nhỏ — 3X nhỏ</option>
-                            <option value="medium">Mức trung — 3X trung</option>
-                            <option value="large">Mức lớn — 3X lớn</option>
+                            <option value="auto">Tự ghi nhỏ / trung / lớn theo mốc giá</option>
                           </select>
                           <small className="mt-1.5 block text-[10px] leading-4 text-steel">
-                            Nhỏ: đầu khoảng thấp · Trung: khoảng giữa · Lớn: gần đầu kế tiếp.
+                            31 → 3X nhỏ · 35 → 3X trung · 38 → 3X lớn.
                           </small>
                         </Field>
                       )}
