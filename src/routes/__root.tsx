@@ -77,6 +77,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "theme-color", content: "#070809" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-title", content: "CU PI STORE" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
       { title: "CU PI STORE — Xe máy tuyển chọn tại Biên Hòa" },
       {
         name: "description",
@@ -104,7 +109,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: "https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap&subset=vietnamese",
       },
       { rel: "icon", href: "/cupi-favicon-v2.png?v=2", type: "image/png", sizes: "512x512" },
-      { rel: "apple-touch-icon", href: "/cupi-favicon-v2.png?v=2", sizes: "512x512" },
+      { rel: "apple-touch-icon", href: "/pwa-icon-192.png", sizes: "192x192" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
     ],
   }),
 
@@ -130,6 +136,12 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    if (import.meta.env.PROD && "serviceWorker" in navigator) {
+      void navigator.serviceWorker.register("/sw.js");
+    }
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

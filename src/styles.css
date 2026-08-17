@@ -130,7 +130,8 @@
     background: var(--background);
     padding: 0.68rem 0.75rem;
     color: var(--foreground);
-    font-size: 0.875rem;
+    font-size: 1rem;
+    min-height: 3rem;
     outline: none;
     transition: border-color 160ms ease;
   }
@@ -143,6 +144,15 @@
 
   & textarea {
     resize: vertical;
+    min-height: 8rem;
+  }
+
+  @media (min-width: 640px) {
+    & input,
+    & select,
+    & textarea {
+      font-size: 0.875rem;
+    }
   }
 }
 

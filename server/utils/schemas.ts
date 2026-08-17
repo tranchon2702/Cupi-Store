@@ -7,6 +7,9 @@ const imageSchema = z
   .refine(
     (value) =>
       value.startsWith("data:image/webp;base64,") ||
+      value.startsWith("data:image/jpeg;base64,") ||
+      value.startsWith("data:image/jpg;base64,") ||
+      value.startsWith("data:image/png;base64,") ||
       value.startsWith("/") ||
       value.startsWith("https://") ||
       value.startsWith("http://"),
@@ -33,7 +36,7 @@ export const bikeSchema = z.object({
   machine: z.string().trim().min(1).max(60).default("Máy zin"),
   condition: z.enum(["Mới", "Đã qua sử dụng"]),
   cover: imageSchema,
-  gallery: z.array(imageSchema).min(1).max(8),
+  gallery: z.array(imageSchema).min(1).max(15),
   tags: z.array(z.string().trim().min(1).max(50)).max(5),
   description: z.string().trim().max(5000),
   specs: z.array(z.object({ label: z.string().max(80), value: z.string().max(200) })).max(12),
@@ -46,7 +49,7 @@ export const ledServiceSchema = z.object({
   priceMillion: priceSchema,
   priceLabel: z.string().max(40).optional(),
   cover: imageSchema,
-  gallery: z.array(imageSchema).min(1).max(8),
+  gallery: z.array(imageSchema).min(1).max(15),
   description: z.string().trim().max(5000),
   tags: z.array(z.string().trim().min(1).max(50)).max(5),
   warranty: z.string().trim().max(200),

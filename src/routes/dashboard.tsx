@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import {
   Bike as BikeIcon,
   Check,
+  Download,
   ExternalLink,
   ImagePlus,
   LayoutDashboard,
@@ -13,6 +14,7 @@ import {
   Plus,
   Search,
   Settings2,
+  Share2,
   Trash2,
   X,
 } from "lucide-react";
@@ -69,6 +71,11 @@ type LedForm = {
   tags: string;
   warranty: string;
   images: string[];
+};
+
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
 const emptyForm = (): BikeForm => ({
@@ -139,8 +146,9 @@ function Dashboard() {
   const [ledNotice, setLedNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [ledSaving, setLedSaving] = useState(false);
-  const [activeSection, setActiveSection] = useState<"overview" | "inventory" | "led">("overview");
-  const [showOptionManager, setShowOptionManager] = useState(false);
+  const [activeSection, setActiveSection] = useState<"overview" | "inventory" | "options" | "led">(
+    "overview",
+  );
   const [optionDrafts, setOptionDrafts] = useState<Record<VehicleOptionKind, string>>({
     brand: "",
     type: "",
@@ -150,6 +158,10 @@ function Dashboard() {
   const [deletingOption, setDeletingOption] = useState("");
   const [optionNotice, setOptionNotice] = useState("");
   const [optionSaving, setOptionSaving] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [isIos, setIsIos] = useState(false);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/session", { credentials: "same-origin" })
@@ -158,6 +170,30 @@ function Dashboard() {
         setAuthState(session.authenticated ? "authenticated" : "guest"),
       )
       .catch(() => setAuthState("guest"));
+  }, []);
+
+  useEffect(() => {
+    const standalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+    setIsStandalone(standalone);
+    setIsIos(/iPad|iPhone|iPod/.test(navigator.userAgent));
+
+    const onInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+    const onInstalled = () => {
+      setInstallPrompt(null);
+      setIsStandalone(true);
+      setShowInstallHelp(false);
+    };
+    window.addEventListener("beforeinstallprompt", onInstallPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onInstallPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
   }, []);
 
   useEffect(() => {
@@ -183,6 +219,9 @@ function Dashboard() {
       const inventoryTop =
         document.getElementById("inventory")?.getBoundingClientRect().top ??
         Number.POSITIVE_INFINITY;
+      const optionsTop =
+        document.getElementById("vehicle-options")?.getBoundingClientRect().top ??
+        Number.POSITIVE_INFINITY;
       const ledTop =
         document.getElementById("led-services")?.getBoundingClientRect().top ??
         Number.POSITIVE_INFINITY;
@@ -195,7 +234,13 @@ function Dashboard() {
         scrollContainer.scrollTop + scrollContainer.clientHeight >=
           scrollContainer.scrollHeight - 24;
       setActiveSection(
-        atBottom || ledTop <= marker ? "led" : inventoryTop <= marker ? "inventory" : "overview",
+        atBottom || ledTop <= marker
+          ? "led"
+          : optionsTop <= marker
+            ? "options"
+            : inventoryTop <= marker
+              ? "inventory"
+              : "overview",
       );
     };
     updateActiveSection();
@@ -207,14 +252,16 @@ function Dashboard() {
     };
   }, [authState]);
 
-  const scrollToDashboardSection = (id: "overview" | "inventory" | "led-services") => {
+  const scrollToDashboardSection = (
+    id: "overview" | "inventory" | "vehicle-options" | "led-services",
+  ) => {
     if (id === "overview") {
       dashboardMainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     } else {
       document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
     window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
-    setActiveSection(id === "led-services" ? "led" : id);
+    setActiveSection(id === "led-services" ? "led" : id === "vehicle-options" ? "options" : id);
   };
 
   const filtered = useMemo(
@@ -273,14 +320,26 @@ function Dashboard() {
 
   const onImages = async (files: FileList | null) => {
     if (!files?.length) return;
+    const remaining = 15 - form.images.length;
+    if (remaining <= 0) {
+      setNotice("Đã đủ 15 ảnh. Xóa bớt ảnh cũ nếu muốn chọn ảnh khác.");
+      return;
+    }
     setProcessing(true);
     setNotice("Đang tối ưu ảnh để tải nhanh mà vẫn sắc nét...");
     try {
-      const optimized = await optimizeImages(Array.from(files));
-      setForm((current) => ({ ...current, images: [...current.images, ...optimized].slice(0, 8) }));
-      setNotice(`Đã tối ưu ${optimized.length} ảnh (WebP, tối đa 1440px).`);
-    } catch {
-      setNotice("Không xử lý được ảnh này. Vui lòng thử ảnh JPG, PNG hoặc WebP khác.");
+      const optimized = await optimizeImages(Array.from(files), remaining);
+      setForm((current) => ({
+        ...current,
+        images: [...current.images, ...optimized].slice(0, 15),
+      }));
+      setNotice(`Đã tối ưu ${optimized.length} ảnh, tối đa 1440px và phù hợp với điện thoại.`);
+    } catch (reason) {
+      setNotice(
+        reason instanceof Error
+          ? reason.message
+          : "Không xử lý được ảnh này. Vui lòng thử chọn lại ảnh.",
+      );
     } finally {
       setProcessing(false);
     }
@@ -401,17 +460,24 @@ function Dashboard() {
 
   const onLedImages = async (files: FileList | null) => {
     if (!files?.length) return;
+    const remaining = 15 - ledForm.images.length;
+    if (remaining <= 0) {
+      setLedNotice("Đã đủ 15 ảnh. Xóa bớt ảnh cũ nếu muốn chọn ảnh khác.");
+      return;
+    }
     setLedProcessing(true);
     setLedNotice("Đang tối ưu ảnh LED...");
     try {
-      const optimized = await optimizeImages(Array.from(files));
+      const optimized = await optimizeImages(Array.from(files), remaining);
       setLedForm((current) => ({
         ...current,
-        images: [...current.images, ...optimized].slice(0, 8),
+        images: [...current.images, ...optimized].slice(0, 15),
       }));
-      setLedNotice(`Đã tối ưu ${optimized.length} ảnh WebP.`);
-    } catch {
-      setLedNotice("Không xử lý được ảnh. Vui lòng chọn JPG, PNG hoặc WebP khác.");
+      setLedNotice(`Đã tối ưu ${optimized.length} ảnh và chuẩn hóa cho điện thoại.`);
+    } catch (reason) {
+      setLedNotice(
+        reason instanceof Error ? reason.message : "Không xử lý được ảnh. Vui lòng chọn lại ảnh.",
+      );
     } finally {
       setLedProcessing(false);
     }
@@ -492,7 +558,11 @@ function Dashboard() {
 
   const createVehicleOption = async (kind: VehicleOptionKind) => {
     const name = optionDrafts[kind].trim();
-    if (!name) return;
+    if (!name) {
+      const label = kind === "brand" ? "hãng xe" : kind === "type" ? "loại xe" : "tên máy";
+      setOptionNotice(`Hãy nhập ${label} mới trước khi bấm Thêm.`);
+      return;
+    }
     setOptionSaving(true);
     setOptionNotice("");
     try {
@@ -544,9 +614,19 @@ function Dashboard() {
     setAuthState("guest");
   };
 
+  const installDashboardApp = async () => {
+    if (!installPrompt) {
+      setShowInstallHelp(true);
+      return;
+    }
+    await installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    if (choice.outcome === "accepted") setInstallPrompt(null);
+  };
+
   return (
     <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[#0b0c0e] text-foreground">
-      <header className="z-40 shrink-0 border-b border-white/10 bg-[#101114]">
+      <header className="z-40 shrink-0 border-b border-white/10 bg-[#101114] pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex h-16 max-w-[1500px] items-center justify-between px-4 sm:px-6">
           <Link to="/" className="flex items-center gap-3">
             <img
@@ -556,11 +636,27 @@ function Dashboard() {
             />
           </Link>
           <div className="flex items-center gap-3">
+            {!isStandalone && (
+              <button
+                type="button"
+                onClick={() => void installDashboardApp()}
+                className="grid h-9 w-9 place-items-center border border-primary/40 text-primary hover:bg-primary hover:text-black sm:flex sm:w-auto sm:px-3"
+                title="Cài ứng dụng quản lý"
+                aria-label="Cài ứng dụng quản lý"
+              >
+                <Download className="h-4 w-4" />
+                <span className="ml-2 hidden text-[10px] font-bold uppercase tracking-wider sm:inline">
+                  Cài ứng dụng
+                </span>
+              </button>
+            )}
             <Link
               to="/"
-              className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-primary"
+              className="flex h-9 items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-primary"
+              aria-label="Xem website"
             >
-              Xem website <ExternalLink className="h-4 w-4" />
+              <span className="hidden sm:inline">Xem website</span>
+              <ExternalLink className="h-4 w-4" />
             </Link>
             <button
               type="button"
@@ -575,26 +671,35 @@ function Dashboard() {
         </div>
       </header>
 
-      <nav className="z-30 grid shrink-0 grid-cols-2 border-b border-white/10 bg-[#0f1012] lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-white/10 bg-[#0f1012]/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-16px_40px_rgba(0,0,0,0.45)] backdrop-blur lg:hidden">
+        <button
+          type="button"
+          onClick={() => scrollToDashboardSection("overview")}
+          className={`flex h-14 flex-col items-center justify-center gap-1 border-r border-white/10 text-[9px] font-bold uppercase tracking-wider ${activeSection === "overview" ? "bg-primary/10 text-primary" : "text-steel"}`}
+        >
+          <LayoutDashboard className="h-5 w-5" />
+          Tổng quan
+        </button>
         <button
           type="button"
           onClick={() => scrollToDashboardSection("inventory")}
-          className={`flex h-11 items-center justify-center gap-2 border-r border-white/10 text-xs font-bold uppercase tracking-wider ${activeSection === "inventory" ? "bg-primary text-black" : "text-white"}`}
+          className={`flex h-14 flex-col items-center justify-center gap-1 border-r border-white/10 text-[9px] font-bold uppercase tracking-wider ${activeSection === "inventory" ? "bg-primary/10 text-primary" : "text-steel"}`}
         >
-          <BikeIcon
-            className={`h-4 w-4 ${activeSection === "inventory" ? "text-black" : "text-primary"}`}
-          />{" "}
-          Kho xe
+          <BikeIcon className="h-5 w-5" /> Kho xe
+        </button>
+        <button
+          type="button"
+          onClick={() => scrollToDashboardSection("vehicle-options")}
+          className={`flex h-14 flex-col items-center justify-center gap-1 border-r border-white/10 text-[9px] font-bold uppercase tracking-wider ${activeSection === "options" ? "bg-primary/10 text-primary" : "text-steel"}`}
+        >
+          <Settings2 className="h-5 w-5" /> Danh mục
         </button>
         <button
           type="button"
           onClick={() => scrollToDashboardSection("led-services")}
-          className={`flex h-11 items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider ${activeSection === "led" ? "bg-primary text-black" : "text-white"}`}
+          className={`flex h-14 flex-col items-center justify-center gap-1 text-[9px] font-bold uppercase tracking-wider ${activeSection === "led" ? "bg-primary/10 text-primary" : "text-steel"}`}
         >
-          <Lightbulb
-            className={`h-4 w-4 ${activeSection === "led" ? "text-black" : "text-primary"}`}
-          />{" "}
-          Đèn LED
+          <Lightbulb className="h-5 w-5" /> Đèn LED
         </button>
       </nav>
 
@@ -618,10 +723,11 @@ function Dashboard() {
             <BikeIcon className="h-4 w-4" /> Kho xe
           </button>
           <button
-            onClick={startNew}
-            className="mt-1 flex w-full items-center gap-3 px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-white/5 hover:text-white"
+            type="button"
+            onClick={() => scrollToDashboardSection("vehicle-options")}
+            className={`mt-1 flex w-full items-center gap-3 px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider ${activeSection === "options" ? "bg-primary text-black" : "text-muted-foreground hover:bg-white/5 hover:text-white"}`}
           >
-            <Plus className="h-4 w-4" /> Đăng xe mới
+            <Settings2 className="h-4 w-4" /> Danh mục xe
           </button>
           <button
             type="button"
@@ -630,25 +736,50 @@ function Dashboard() {
           >
             <Lightbulb className="h-4 w-4" /> Dịch vụ đèn LED
           </button>
-          <button
-            onClick={startNewLed}
-            className="mt-1 flex w-full items-center gap-3 px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-white/5 hover:text-white"
-          >
-            <Plus className="h-4 w-4" /> Thêm dịch vụ LED
-          </button>
         </aside>
 
         <main
           ref={dashboardMainRef}
           id="overview"
-          className="min-h-0 min-w-0 overflow-y-auto overscroll-contain scroll-smooth p-4 sm:p-6 lg:p-8"
+          className="min-h-0 min-w-0 overflow-y-auto overscroll-contain scroll-smooth p-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(5rem+env(safe-area-inset-bottom))] lg:p-8"
         >
           {(bikeLoadError || ledLoadError || optionLoadError) && (
             <div className="mb-5 border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-300">
               Không kết nối được dữ liệu máy chủ. {bikeLoadError || ledLoadError || optionLoadError}
             </div>
           )}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          {!isStandalone && (installPrompt || isIos) && (
+            <div className="mb-4 border border-primary/30 bg-primary/[0.06] p-3 lg:hidden">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center bg-primary text-black">
+                  {isIos ? <Share2 className="h-5 w-5" /> : <Download className="h-5 w-5" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <strong className="block text-xs uppercase text-white">
+                    Cài CU PI STORE như ứng dụng
+                  </strong>
+                  <p className="mt-1 text-[10px] leading-4 text-steel">
+                    Mở nhanh toàn màn hình, thao tác thuận tiện hơn trên điện thoại.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void installDashboardApp()}
+                  className="h-10 shrink-0 bg-primary px-3 text-[10px] font-bold uppercase text-black"
+                >
+                  Cài ngay
+                </button>
+              </div>
+              {showInstallHelp && (
+                <p className="mt-3 border-t border-primary/20 pt-3 text-[11px] leading-5 text-white">
+                  {isIos
+                    ? "Trên iPhone: mở trang bằng Safari → bấm nút Chia sẻ → chọn “Thêm vào MH chính”."
+                    : "Mở menu trình duyệt và chọn “Cài đặt ứng dụng” hoặc “Thêm vào màn hình chính”."}
+                </p>
+              )}
+            </div>
+          )}
+          <div>
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary">
                 Khu vực quản trị
@@ -658,30 +789,9 @@ function Dashboard() {
                 Chọn việc cần làm, nhập thông tin rồi bấm lưu để cập nhật website.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setShowOptionManager((current) => !current)}
-                className="flex h-11 items-center justify-center gap-2 border border-white/15 px-5 text-xs font-bold uppercase tracking-wider text-white hover:border-primary hover:text-primary"
-              >
-                <Settings2 className="h-4 w-4" /> Danh mục xe
-              </button>
-              <button
-                onClick={startNewLed}
-                className="flex h-11 items-center justify-center gap-2 border border-primary px-5 text-xs font-bold uppercase tracking-wider text-primary"
-              >
-                <Lightbulb className="h-4 w-4" /> Thêm dịch vụ LED
-              </button>
-              <button
-                onClick={startNew}
-                className="flex h-11 items-center justify-center gap-2 bg-primary px-5 text-xs font-bold uppercase tracking-wider text-black"
-              >
-                <Plus className="h-4 w-4" /> Thêm xe mới
-              </button>
-            </div>
           </div>
 
-          <div className="mt-7 grid gap-3 sm:grid-cols-3">
+          <div className="mt-6 grid grid-cols-3 gap-2 sm:mt-7 sm:gap-3">
             <Stat
               label="Tổng xe trong kho"
               value={String(inventory.length)}
@@ -698,30 +808,6 @@ function Dashboard() {
               sub="Hãng hiện có xe trong kho"
             />
           </div>
-
-          {showOptionManager && (
-            <VehicleOptionManager
-              options={vehicleOptions}
-              drafts={optionDrafts}
-              editing={editingOption}
-              deletingSlug={deletingOption}
-              notice={optionNotice}
-              saving={optionSaving}
-              onDraftChange={(kind, value) =>
-                setOptionDrafts((current) => ({ ...current, [kind]: value }))
-              }
-              onAdd={(kind) => void createVehicleOption(kind)}
-              onStartEdit={(slug, name) => setEditingOption({ slug, name })}
-              onEditChange={(name) =>
-                setEditingOption((current) => (current ? { ...current, name } : null))
-              }
-              onSaveEdit={() => void saveVehicleOptionName()}
-              onCancelEdit={() => setEditingOption(null)}
-              onAskDelete={setDeletingOption}
-              onConfirmDelete={(slug) => void confirmRemoveVehicleOption(slug)}
-              onCancelDelete={() => setDeletingOption("")}
-            />
-          )}
 
           {!inventory.length && !services.length && (
             <section className="mt-5 border border-primary/25 bg-primary/[0.04] p-4 sm:p-5">
@@ -744,7 +830,7 @@ function Dashboard() {
                   <span>
                     <strong className="block text-sm uppercase">Đăng một chiếc xe</strong>
                     <small className="mt-1 block text-[11px]">
-                      Thông tin xe, giá và tối đa 8 ảnh
+                      Thông tin xe, giá và tối đa 15 ảnh
                     </small>
                   </span>
                 </button>
@@ -769,13 +855,13 @@ function Dashboard() {
 
           {showEditor && (
             <div
-              className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-3 backdrop-blur-sm sm:p-6"
+              className="fixed inset-0 z-50 flex min-h-0 items-stretch justify-center bg-black/80 backdrop-blur-sm sm:p-6"
               onMouseDown={(event) => {
                 if (event.currentTarget === event.target) requestCloseEditor();
               }}
             >
-              <section className="mx-auto w-full max-w-6xl border border-primary/30 bg-[#121316] shadow-2xl">
-                <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6">
+              <section className="flex h-full min-h-0 w-full max-w-6xl flex-col overflow-hidden border-primary/30 bg-[#121316] shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:border">
+                <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6">
                   <div>
                     <p className="font-display text-2xl text-white">
                       {form.originalSlug ? "CHỈNH SỬA XE" : "ĐĂNG XE MỚI"}
@@ -786,7 +872,7 @@ function Dashboard() {
                   </div>
                   <button
                     onClick={requestCloseEditor}
-                    className="p-2 text-steel hover:text-white"
+                    className="grid h-11 w-11 shrink-0 place-items-center text-steel hover:text-white"
                     aria-label="Đóng"
                   >
                     <X className="h-5 w-5" />
@@ -797,252 +883,270 @@ function Dashboard() {
                     event.preventDefault();
                     void saveBike();
                   }}
-                  className="grid gap-6 p-4 sm:p-6 xl:grid-cols-[1fr_380px]"
+                  className="flex min-h-0 flex-1 flex-col"
                 >
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Tên xe *" className="sm:col-span-2">
-                      <input
-                        value={form.name}
-                        onChange={(e) => setForm({ ...form, name: e.target.value })}
-                        placeholder="Honda SH160i ABS"
-                        required
-                      />
-                    </Field>
-                    <Field label="Hãng xe">
-                      <select
-                        value={form.brand}
-                        onChange={(e) => setForm({ ...form, brand: e.target.value })}
-                      >
-                        {optionNames(vehicleOptions, "brand").map((brand) => (
-                          <option key={brand}>{brand}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Loại xe">
-                      <select
-                        value={form.type}
-                        onChange={(e) => setForm({ ...form, type: e.target.value as Bike["type"] })}
-                      >
-                        {optionNames(vehicleOptions, "type").map((type) => (
-                          <option key={type}>{type}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Năm sản xuất">
-                      <input
-                        type="number"
-                        min="1990"
-                        max="2035"
-                        value={form.year}
-                        onChange={(e) => setForm({ ...form, year: e.target.value })}
-                      />
-                    </Field>
-                    <Field label="Cách hiển thị giá">
-                      <select
-                        value={form.priceMode}
-                        onChange={(event) =>
-                          setForm({ ...form, priceMode: event.target.value as PriceMode })
-                        }
-                      >
-                        <option value="range">Ẩn theo đầu giá — 2X, 3X...</option>
-                        <option value="contact">Liên hệ</option>
-                      </select>
-                    </Field>
-                    <Field
-                      label={
-                        form.priceMode === "range"
-                          ? "Mốc giá để lọc (không công khai) *"
-                          : "Hiển thị"
-                      }
-                    >
-                      {form.priceMode === "range" ? (
-                        <input
-                          type="number"
-                          min="1"
-                          max="100"
-                          step="1"
-                          value={form.priceMillion}
-                          onChange={(event) =>
-                            setForm({ ...form, priceMillion: event.target.value })
-                          }
-                          placeholder="Ví dụ: 31"
-                          required
-                        />
-                      ) : (
-                        <input value="Liên hệ" readOnly />
-                      )}
-                      {form.priceMode === "range" && (
-                        <small className="mt-1.5 block text-[10px] leading-4 text-steel">
-                          Ví dụ nhập 38 để xe nằm đúng bộ lọc giá; khách không thấy số 38.
-                        </small>
-                      )}
-                      <small className="mt-1.5 block text-[10px] text-primary">
-                        Khách sẽ thấy:{" "}
-                        {formatVehiclePrice({
-                          priceMillion:
-                            form.priceMode === "range" ? Number(form.priceMillion) : null,
-                          priceBand:
-                            form.priceBandMode === "auto"
-                              ? inferVehiclePriceBand(
-                                  form.priceMode === "range" ? Number(form.priceMillion) : null,
-                                )
-                              : "head",
-                        })}
-                      </small>
-                    </Field>
-                    {form.priceMode === "range" &&
-                      Number(form.priceMillion) >= 10 &&
-                      Number(form.priceMillion) < 100 && (
-                        <Field label="Cách ghi công khai">
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-8 sm:p-6">
+                    <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
+                      <div className="grid content-start gap-4 sm:grid-cols-2">
+                        <div className="border-b border-white/10 pb-2 sm:col-span-2 xl:hidden">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
+                            Thông tin xe
+                          </p>
+                        </div>
+                        <Field label="Tên xe *" className="sm:col-span-2">
+                          <input
+                            value={form.name}
+                            onChange={(e) => setForm({ ...form, name: e.target.value })}
+                            placeholder="Honda SH160i ABS"
+                            required
+                          />
+                        </Field>
+                        <Field label="Hãng xe">
                           <select
-                            value={form.priceBandMode}
-                            onChange={(event) =>
-                              setForm({
-                                ...form,
-                                priceBandMode: event.target.value as "head" | "auto",
-                              })
+                            value={form.brand}
+                            onChange={(e) => setForm({ ...form, brand: e.target.value })}
+                          >
+                            {optionNames(vehicleOptions, "brand").map((brand) => (
+                              <option key={brand}>{brand}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Loại xe">
+                          <select
+                            value={form.type}
+                            onChange={(e) =>
+                              setForm({ ...form, type: e.target.value as Bike["type"] })
                             }
                           >
-                            <option value="head">Chỉ hiện đầu — 3X triệu</option>
-                            <option value="auto">Tự ghi nhỏ / trung / lớn theo mốc giá</option>
+                            {optionNames(vehicleOptions, "type").map((type) => (
+                              <option key={type}>{type}</option>
+                            ))}
                           </select>
-                          <small className="mt-1.5 block text-[10px] leading-4 text-steel">
-                            31 → 3X nhỏ · 35 → 3X trung · 38 → 3X lớn.
+                        </Field>
+                        <Field label="Năm sản xuất">
+                          <input
+                            type="number"
+                            min="1990"
+                            max="2035"
+                            value={form.year}
+                            onChange={(e) => setForm({ ...form, year: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Cách hiển thị giá">
+                          <select
+                            value={form.priceMode}
+                            onChange={(event) =>
+                              setForm({ ...form, priceMode: event.target.value as PriceMode })
+                            }
+                          >
+                            <option value="range">Ẩn theo đầu giá — 2X, 3X...</option>
+                            <option value="contact">Liên hệ</option>
+                          </select>
+                        </Field>
+                        <Field
+                          label={
+                            form.priceMode === "range"
+                              ? "Mốc giá để lọc (không công khai) *"
+                              : "Hiển thị"
+                          }
+                        >
+                          {form.priceMode === "range" ? (
+                            <input
+                              type="number"
+                              min="1"
+                              max="100"
+                              step="1"
+                              value={form.priceMillion}
+                              onChange={(event) =>
+                                setForm({ ...form, priceMillion: event.target.value })
+                              }
+                              placeholder="Ví dụ: 31"
+                              required
+                            />
+                          ) : (
+                            <input value="Liên hệ" readOnly />
+                          )}
+                          {form.priceMode === "range" && (
+                            <small className="mt-1.5 block text-[10px] leading-4 text-steel">
+                              Ví dụ nhập 38 để xe nằm đúng bộ lọc giá; khách không thấy số 38.
+                            </small>
+                          )}
+                          <small className="mt-1.5 block text-[10px] text-primary">
+                            Khách sẽ thấy:{" "}
+                            {formatVehiclePrice({
+                              priceMillion:
+                                form.priceMode === "range" ? Number(form.priceMillion) : null,
+                              priceBand:
+                                form.priceBandMode === "auto"
+                                  ? inferVehiclePriceBand(
+                                      form.priceMode === "range" ? Number(form.priceMillion) : null,
+                                    )
+                                  : "head",
+                            })}
                           </small>
                         </Field>
-                      )}
-                    <Field label="Phân khối (cc)">
-                      <input
-                        type="number"
-                        min="49"
-                        value={form.engine}
-                        onChange={(e) => setForm({ ...form, engine: e.target.value })}
-                      />
-                    </Field>
-                    <Field label="Máy">
-                      <select
-                        value={form.machine}
-                        onChange={(event) => setForm({ ...form, machine: event.target.value })}
-                      >
-                        {optionNames(vehicleOptions, "machine").map((machine) => (
-                          <option key={machine}>{machine}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Công suất">
-                      <input
-                        value={form.power}
-                        onChange={(e) => setForm({ ...form, power: e.target.value })}
-                        placeholder="15,4 HP / 8.500 rpm"
-                      />
-                    </Field>
-                    <Field label="Khối lượng">
-                      <input
-                        value={form.weight}
-                        onChange={(e) => setForm({ ...form, weight: e.target.value })}
-                        placeholder="134 kg"
-                      />
-                    </Field>
-                    <Field label="Bảo hành">
-                      <input
-                        value={form.warranty}
-                        onChange={(e) => setForm({ ...form, warranty: e.target.value })}
-                        placeholder="36 tháng chính hãng"
-                      />
-                    </Field>
-                    <Field label="Nhãn nổi bật" className="sm:col-span-2">
-                      <input
-                        value={form.tags}
-                        onChange={(e) => setForm({ ...form, tags: e.target.value })}
-                        placeholder="ABS, Smartkey, Một chủ (ngăn cách bằng dấu phẩy)"
-                      />
-                    </Field>
-                    <Field label="Mô tả chi tiết" className="sm:col-span-2">
-                      <textarea
-                        rows={5}
-                        value={form.description}
-                        onChange={(e) => setForm({ ...form, description: e.target.value })}
-                        placeholder="Tình trạng xe, lịch sử bảo dưỡng, phụ kiện đi kèm..."
-                      />
-                    </Field>
-                  </div>
-
-                  <div>
-                    <label className="group grid min-h-36 cursor-pointer place-items-center border border-dashed border-white/20 bg-background/50 p-5 text-center transition hover:border-primary">
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/jpeg,image/png,image/webp"
-                        className="sr-only"
-                        onChange={(e) => onImages(e.target.files)}
-                      />
-                      <span>
-                        <ImagePlus className="mx-auto h-8 w-8 text-primary" />
-                        <strong className="mt-3 block text-sm text-white">Tải ảnh xe lên</strong>
-                        <small className="mt-1 block text-[10px] leading-5 text-steel">
-                          Tối đa 8 ảnh · tự làm nhẹ nhưng vẫn giữ độ nét
-                          <br />
-                          Ảnh được chuẩn hóa để website tải nhanh
-                        </small>
-                      </span>
-                    </label>
-                    {processing && (
-                      <div className="mt-3 h-1 overflow-hidden bg-white/10">
-                        <div className="h-full w-2/3 animate-pulse bg-primary" />
-                      </div>
-                    )}
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                      {form.images.map((image, index) => (
-                        <div
-                          key={`${image.slice(-20)}-${index}`}
-                          className="group relative aspect-square overflow-hidden border border-white/10"
-                        >
-                          <img
-                            src={image}
-                            alt={`Ảnh xe ${index + 1}`}
-                            className="h-full w-full object-cover"
+                        {form.priceMode === "range" &&
+                          Number(form.priceMillion) >= 10 &&
+                          Number(form.priceMillion) < 100 && (
+                            <Field label="Cách ghi công khai">
+                              <select
+                                value={form.priceBandMode}
+                                onChange={(event) =>
+                                  setForm({
+                                    ...form,
+                                    priceBandMode: event.target.value as "head" | "auto",
+                                  })
+                                }
+                              >
+                                <option value="head">Chỉ hiện đầu — 3X triệu</option>
+                                <option value="auto">Tự ghi nhỏ / trung / lớn theo mốc giá</option>
+                              </select>
+                              <small className="mt-1.5 block text-[10px] leading-4 text-steel">
+                                31 → 3X nhỏ · 35 → 3X trung · 38 → 3X lớn.
+                              </small>
+                            </Field>
+                          )}
+                        <Field label="Phân khối (cc)">
+                          <input
+                            type="number"
+                            min="49"
+                            value={form.engine}
+                            onChange={(e) => setForm({ ...form, engine: e.target.value })}
                           />
-                          <span className="absolute bottom-1 left-1 bg-black/80 px-1.5 py-0.5 text-[8px] text-white">
-                            {index === 0 ? "Ảnh card" : index + 1}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setForm((current) => ({
-                                ...current,
-                                images: current.images.filter((_, i) => i !== index),
-                              }))
-                            }
-                            className="absolute right-1 top-1 grid h-6 w-6 place-items-center bg-black/80 text-white opacity-0 transition group-hover:opacity-100"
-                            aria-label={`Xóa ảnh ${index + 1}`}
+                        </Field>
+                        <Field label="Máy">
+                          <select
+                            value={form.machine}
+                            onChange={(event) => setForm({ ...form, machine: event.target.value })}
                           >
-                            <X className="h-3 w-3" />
-                          </button>
+                            {optionNames(vehicleOptions, "machine").map((machine) => (
+                              <option key={machine}>{machine}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Công suất">
+                          <input
+                            value={form.power}
+                            onChange={(e) => setForm({ ...form, power: e.target.value })}
+                            placeholder="15,4 HP / 8.500 rpm"
+                          />
+                        </Field>
+                        <Field label="Khối lượng">
+                          <input
+                            value={form.weight}
+                            onChange={(e) => setForm({ ...form, weight: e.target.value })}
+                            placeholder="134 kg"
+                          />
+                        </Field>
+                        <Field label="Bảo hành">
+                          <input
+                            value={form.warranty}
+                            onChange={(e) => setForm({ ...form, warranty: e.target.value })}
+                            placeholder="36 tháng chính hãng"
+                          />
+                        </Field>
+                        <Field label="Nhãn nổi bật" className="sm:col-span-2">
+                          <input
+                            value={form.tags}
+                            onChange={(e) => setForm({ ...form, tags: e.target.value })}
+                            placeholder="ABS, Smartkey, Một chủ (ngăn cách bằng dấu phẩy)"
+                          />
+                        </Field>
+                        <Field label="Mô tả chi tiết" className="sm:col-span-2">
+                          <textarea
+                            rows={5}
+                            value={form.description}
+                            onChange={(e) => setForm({ ...form, description: e.target.value })}
+                            placeholder="Tình trạng xe, lịch sử bảo dưỡng, phụ kiện đi kèm..."
+                          />
+                        </Field>
+                      </div>
+
+                      <div>
+                        <div className="mb-3 border-b border-white/10 pb-2 xl:hidden">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
+                            Hình ảnh xe
+                          </p>
                         </div>
-                      ))}
+                        <label className="group grid min-h-36 cursor-pointer place-items-center border border-dashed border-white/20 bg-background/50 p-5 text-center transition hover:border-primary">
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/*,.heic,.heif"
+                            className="sr-only"
+                            onChange={(e) => onImages(e.target.files)}
+                          />
+                          <span>
+                            <ImagePlus className="mx-auto h-8 w-8 text-primary" />
+                            <strong className="mt-3 block text-sm text-white">
+                              Chọn ảnh xe ({form.images.length}/15)
+                            </strong>
+                            <small className="mt-1 block text-[10px] leading-5 text-steel">
+                              Tối đa 15 ảnh · nhận cả HEIC/HEIF từ iPhone
+                              <br />
+                              Tự làm nhẹ, giữ độ nét và chuẩn hóa để tải nhanh
+                            </small>
+                          </span>
+                        </label>
+                        {processing && (
+                          <div className="mt-3 h-1 overflow-hidden bg-white/10">
+                            <div className="h-full w-2/3 animate-pulse bg-primary" />
+                          </div>
+                        )}
+                        <div className="mt-3 grid grid-cols-3 gap-2">
+                          {form.images.map((image, index) => (
+                            <div
+                              key={`${image.slice(-20)}-${index}`}
+                              className="group relative aspect-square overflow-hidden border border-white/10"
+                            >
+                              <img
+                                src={image}
+                                alt={`Ảnh xe ${index + 1}`}
+                                className="h-full w-full object-cover"
+                              />
+                              <span className="absolute bottom-1 left-1 bg-black/80 px-1.5 py-0.5 text-[8px] text-white">
+                                {index === 0 ? "Ảnh card" : index + 1}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setForm((current) => ({
+                                    ...current,
+                                    images: current.images.filter((_, i) => i !== index),
+                                  }))
+                                }
+                                className="absolute right-1 top-1 grid h-8 w-8 place-items-center bg-black/85 text-white opacity-100 transition sm:h-6 sm:w-6 sm:opacity-0 sm:group-hover:opacity-100"
+                                aria-label={`Xóa ảnh ${index + 1}`}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        {notice && (
+                          <p className="mt-3 border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-primary">
+                            {notice}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    {notice && (
-                      <p className="mt-3 border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-primary">
-                        {notice}
-                      </p>
-                    )}
-                    <div className="mt-5 flex gap-2">
-                      <button
-                        type="submit"
-                        disabled={saving || processing}
-                        className="flex h-11 flex-1 items-center justify-center gap-2 bg-primary px-4 text-xs font-bold uppercase tracking-wider text-black"
-                      >
-                        <Check className="h-4 w-4" />{" "}
-                        {saving ? "Đang lưu..." : form.originalSlug ? "Lưu thay đổi" : "Đăng xe"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={requestCloseEditor}
-                        className="h-11 border border-white/15 px-4 text-xs font-bold uppercase text-muted-foreground"
-                      >
-                        Hủy
-                      </button>
-                    </div>
+                  </div>
+                  <div className="flex shrink-0 gap-2 border-t border-white/10 bg-[#121316] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-4">
+                    <button
+                      type="submit"
+                      disabled={saving || processing}
+                      className="flex h-12 flex-1 items-center justify-center gap-2 bg-primary px-4 text-xs font-bold uppercase tracking-wider text-black disabled:opacity-60"
+                    >
+                      <Check className="h-4 w-4" />{" "}
+                      {saving ? "Đang lưu..." : form.originalSlug ? "Lưu thay đổi" : "Đăng xe"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={requestCloseEditor}
+                      className="h-12 min-w-20 border border-white/15 px-4 text-xs font-bold uppercase text-muted-foreground"
+                    >
+                      Hủy
+                    </button>
                   </div>
                 </form>
               </section>
@@ -1063,13 +1167,13 @@ function Dashboard() {
 
           {showLedEditor && (
             <div
-              className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-3 backdrop-blur-sm sm:p-6"
+              className="fixed inset-0 z-50 flex min-h-0 items-stretch justify-center bg-black/80 backdrop-blur-sm sm:p-6"
               onMouseDown={(event) => {
                 if (event.currentTarget === event.target) requestCloseLed();
               }}
             >
-              <section className="mx-auto w-full max-w-5xl border border-primary/30 bg-[#121316] shadow-2xl">
-                <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6">
+              <section className="flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden border-primary/30 bg-[#121316] shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:border">
+                <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6">
                   <div>
                     <p className="font-display text-2xl text-white">
                       {ledForm.originalSlug ? "CHỈNH SỬA DỊCH VỤ LED" : "ĐĂNG DỊCH VỤ LED"}
@@ -1081,7 +1185,7 @@ function Dashboard() {
                   <button
                     type="button"
                     onClick={requestCloseLed}
-                    className="p-2 text-steel hover:text-white"
+                    className="grid h-11 w-11 shrink-0 place-items-center text-steel hover:text-white"
                     aria-label="Đóng"
                   >
                     <X className="h-5 w-5" />
@@ -1093,185 +1197,203 @@ function Dashboard() {
                     event.preventDefault();
                     void saveLed();
                   }}
-                  className="grid gap-6 p-4 sm:p-6 lg:grid-cols-[1fr_340px]"
+                  className="flex min-h-0 flex-1 flex-col"
                 >
-                  <div className="grid content-start gap-4 sm:grid-cols-2">
-                    <Field label="Tên dịch vụ *" className="sm:col-span-2">
-                      <input
-                        value={ledForm.name}
-                        onChange={(event) => setLedForm({ ...ledForm, name: event.target.value })}
-                        placeholder="Ví dụ: Nâng cấp bi cầu LED cho Honda SH"
-                        required
-                      />
-                    </Field>
-                    <Field label="Nhóm dịch vụ">
-                      <select
-                        value={ledForm.category}
-                        onChange={(event) =>
-                          setLedForm({
-                            ...ledForm,
-                            category: event.target.value as LedService["category"],
-                          })
-                        }
-                      >
-                        {LED_CATEGORIES.map((category) => (
-                          <option key={category}>{category}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Cách hiển thị giá">
-                      <select
-                        value={ledForm.priceMode}
-                        onChange={(event) =>
-                          setLedForm({
-                            ...ledForm,
-                            priceMode: event.target.value as PriceMode,
-                          })
-                        }
-                      >
-                        <option value="range">Giá khoảng — trXXX</option>
-                        <option value="contact">Liên hệ</option>
-                      </select>
-                    </Field>
-                    <Field
-                      label={ledForm.priceMode === "range" ? "Số triệu (1–100) *" : "Hiển thị"}
-                    >
-                      {ledForm.priceMode === "range" ? (
-                        <input
-                          type="number"
-                          min="1"
-                          max="100"
-                          step="1"
-                          value={ledForm.priceMillion}
-                          onChange={(event) =>
-                            setLedForm({ ...ledForm, priceMillion: event.target.value })
-                          }
-                          placeholder="Ví dụ: 2"
-                          required
-                        />
-                      ) : (
-                        <input value="Liên hệ" readOnly />
-                      )}
-                      <small className="mt-1.5 block text-[10px] text-primary">
-                        Khách sẽ thấy:{" "}
-                        {formatPublicPrice({
-                          priceMillion:
-                            ledForm.priceMode === "range" ? Number(ledForm.priceMillion) : null,
-                        })}
-                      </small>
-                    </Field>
-                    <Field label="Bảo hành" className="sm:col-span-2">
-                      <input
-                        value={ledForm.warranty}
-                        onChange={(event) =>
-                          setLedForm({ ...ledForm, warranty: event.target.value })
-                        }
-                        placeholder="Bảo hành 12 tháng"
-                      />
-                    </Field>
-                    <Field label="Nhãn nổi bật" className="sm:col-span-2">
-                      <input
-                        value={ledForm.tags}
-                        onChange={(event) => setLedForm({ ...ledForm, tags: event.target.value })}
-                        placeholder="Ánh sáng gom, Chống nước (ngăn cách bằng dấu phẩy)"
-                      />
-                    </Field>
-                    <Field label="Thông tin chi tiết" className="sm:col-span-2">
-                      <textarea
-                        rows={6}
-                        value={ledForm.description}
-                        onChange={(event) =>
-                          setLedForm({ ...ledForm, description: event.target.value })
-                        }
-                        placeholder="Dòng xe phù hợp, cấu hình đèn, thời gian thi công..."
-                      />
-                    </Field>
-                  </div>
-
-                  <div>
-                    <label className="group grid min-h-36 cursor-pointer place-items-center border border-dashed border-white/20 bg-background/50 p-5 text-center transition hover:border-primary">
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/jpeg,image/png,image/webp"
-                        className="sr-only"
-                        onChange={(event) => onLedImages(event.target.files)}
-                      />
-                      <span>
-                        <ImagePlus className="mx-auto h-8 w-8 text-primary" />
-                        <strong className="mt-3 block text-sm text-white">
-                          Tải ảnh dịch vụ lên
-                        </strong>
-                        <small className="mt-1 block text-[10px] leading-5 text-steel">
-                          Tối đa 8 ảnh · tự làm nhẹ nhưng vẫn giữ độ nét
-                          <br />
-                          Xóa dịch vụ sẽ xóa luôn các ảnh lưu kèm
-                        </small>
-                      </span>
-                    </label>
-                    {ledProcessing && (
-                      <div className="mt-3 h-1 overflow-hidden bg-white/10">
-                        <div className="h-full w-2/3 animate-pulse bg-primary" />
-                      </div>
-                    )}
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                      {ledForm.images.map((image, index) => (
-                        <div
-                          key={`${image.slice(-20)}-${index}`}
-                          className="group relative aspect-square overflow-hidden border border-white/10"
-                        >
-                          <img
-                            src={image}
-                            alt={`Ảnh LED ${index + 1}`}
-                            className="h-full w-full object-cover"
-                          />
-                          <span className="absolute bottom-1 left-1 bg-black/80 px-1.5 py-0.5 text-[8px] text-white">
-                            {index === 0 ? "Ảnh card" : index + 1}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setLedForm((current) => ({
-                                ...current,
-                                images: current.images.filter(
-                                  (_, imageIndex) => imageIndex !== index,
-                                ),
-                              }))
-                            }
-                            className="absolute right-1 top-1 grid h-6 w-6 place-items-center bg-black/80 text-white opacity-0 transition group-hover:opacity-100"
-                            aria-label={`Xóa ảnh LED ${index + 1}`}
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-8 sm:p-6">
+                    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+                      <div className="grid content-start gap-4 sm:grid-cols-2">
+                        <div className="border-b border-white/10 pb-2 sm:col-span-2 lg:hidden">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
+                            Thông tin dịch vụ
+                          </p>
                         </div>
-                      ))}
+                        <Field label="Tên dịch vụ *" className="sm:col-span-2">
+                          <input
+                            value={ledForm.name}
+                            onChange={(event) =>
+                              setLedForm({ ...ledForm, name: event.target.value })
+                            }
+                            placeholder="Ví dụ: Nâng cấp bi cầu LED cho Honda SH"
+                            required
+                          />
+                        </Field>
+                        <Field label="Nhóm dịch vụ">
+                          <select
+                            value={ledForm.category}
+                            onChange={(event) =>
+                              setLedForm({
+                                ...ledForm,
+                                category: event.target.value as LedService["category"],
+                              })
+                            }
+                          >
+                            {LED_CATEGORIES.map((category) => (
+                              <option key={category}>{category}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Cách hiển thị giá">
+                          <select
+                            value={ledForm.priceMode}
+                            onChange={(event) =>
+                              setLedForm({
+                                ...ledForm,
+                                priceMode: event.target.value as PriceMode,
+                              })
+                            }
+                          >
+                            <option value="range">Giá khoảng — trXXX</option>
+                            <option value="contact">Liên hệ</option>
+                          </select>
+                        </Field>
+                        <Field
+                          label={ledForm.priceMode === "range" ? "Số triệu (1–100) *" : "Hiển thị"}
+                        >
+                          {ledForm.priceMode === "range" ? (
+                            <input
+                              type="number"
+                              min="1"
+                              max="100"
+                              step="1"
+                              value={ledForm.priceMillion}
+                              onChange={(event) =>
+                                setLedForm({ ...ledForm, priceMillion: event.target.value })
+                              }
+                              placeholder="Ví dụ: 2"
+                              required
+                            />
+                          ) : (
+                            <input value="Liên hệ" readOnly />
+                          )}
+                          <small className="mt-1.5 block text-[10px] text-primary">
+                            Khách sẽ thấy:{" "}
+                            {formatPublicPrice({
+                              priceMillion:
+                                ledForm.priceMode === "range" ? Number(ledForm.priceMillion) : null,
+                            })}
+                          </small>
+                        </Field>
+                        <Field label="Bảo hành" className="sm:col-span-2">
+                          <input
+                            value={ledForm.warranty}
+                            onChange={(event) =>
+                              setLedForm({ ...ledForm, warranty: event.target.value })
+                            }
+                            placeholder="Bảo hành 12 tháng"
+                          />
+                        </Field>
+                        <Field label="Nhãn nổi bật" className="sm:col-span-2">
+                          <input
+                            value={ledForm.tags}
+                            onChange={(event) =>
+                              setLedForm({ ...ledForm, tags: event.target.value })
+                            }
+                            placeholder="Ánh sáng gom, Chống nước (ngăn cách bằng dấu phẩy)"
+                          />
+                        </Field>
+                        <Field label="Thông tin chi tiết" className="sm:col-span-2">
+                          <textarea
+                            rows={6}
+                            value={ledForm.description}
+                            onChange={(event) =>
+                              setLedForm({ ...ledForm, description: event.target.value })
+                            }
+                            placeholder="Dòng xe phù hợp, cấu hình đèn, thời gian thi công..."
+                          />
+                        </Field>
+                      </div>
+
+                      <div>
+                        <div className="mb-3 border-b border-white/10 pb-2 lg:hidden">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
+                            Hình ảnh dịch vụ
+                          </p>
+                        </div>
+                        <label className="group grid min-h-36 cursor-pointer place-items-center border border-dashed border-white/20 bg-background/50 p-5 text-center transition hover:border-primary">
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/*,.heic,.heif"
+                            className="sr-only"
+                            onChange={(event) => onLedImages(event.target.files)}
+                          />
+                          <span>
+                            <ImagePlus className="mx-auto h-8 w-8 text-primary" />
+                            <strong className="mt-3 block text-sm text-white">
+                              Chọn ảnh dịch vụ ({ledForm.images.length}/15)
+                            </strong>
+                            <small className="mt-1 block text-[10px] leading-5 text-steel">
+                              Tối đa 15 ảnh · nhận cả HEIC/HEIF từ iPhone
+                              <br />
+                              Tự làm nhẹ; xóa dịch vụ sẽ xóa luôn ảnh lưu kèm
+                            </small>
+                          </span>
+                        </label>
+                        {ledProcessing && (
+                          <div className="mt-3 h-1 overflow-hidden bg-white/10">
+                            <div className="h-full w-2/3 animate-pulse bg-primary" />
+                          </div>
+                        )}
+                        <div className="mt-3 grid grid-cols-3 gap-2">
+                          {ledForm.images.map((image, index) => (
+                            <div
+                              key={`${image.slice(-20)}-${index}`}
+                              className="group relative aspect-square overflow-hidden border border-white/10"
+                            >
+                              <img
+                                src={image}
+                                alt={`Ảnh LED ${index + 1}`}
+                                className="h-full w-full object-cover"
+                              />
+                              <span className="absolute bottom-1 left-1 bg-black/80 px-1.5 py-0.5 text-[8px] text-white">
+                                {index === 0 ? "Ảnh card" : index + 1}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setLedForm((current) => ({
+                                    ...current,
+                                    images: current.images.filter(
+                                      (_, imageIndex) => imageIndex !== index,
+                                    ),
+                                  }))
+                                }
+                                className="absolute right-1 top-1 grid h-8 w-8 place-items-center bg-black/85 text-white opacity-100 transition sm:h-6 sm:w-6 sm:opacity-0 sm:group-hover:opacity-100"
+                                aria-label={`Xóa ảnh LED ${index + 1}`}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        {ledNotice && (
+                          <p className="mt-3 border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-primary">
+                            {ledNotice}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    {ledNotice && (
-                      <p className="mt-3 border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-primary">
-                        {ledNotice}
-                      </p>
-                    )}
-                    <div className="mt-5 flex gap-2">
-                      <button
-                        type="submit"
-                        disabled={ledSaving || ledProcessing}
-                        className="flex h-11 flex-1 items-center justify-center gap-2 bg-primary px-4 text-xs font-bold uppercase tracking-wider text-black"
-                      >
-                        <Check className="h-4 w-4" />
-                        {ledSaving
-                          ? "Đang lưu..."
-                          : ledForm.originalSlug
-                            ? "Lưu thay đổi"
-                            : "Đăng dịch vụ"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={requestCloseLed}
-                        className="h-11 border border-white/15 px-4 text-xs font-bold uppercase text-muted-foreground"
-                      >
-                        Hủy
-                      </button>
-                    </div>
+                  </div>
+                  <div className="flex shrink-0 gap-2 border-t border-white/10 bg-[#121316] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-4">
+                    <button
+                      type="submit"
+                      disabled={ledSaving || ledProcessing}
+                      className="flex h-12 flex-1 items-center justify-center gap-2 bg-primary px-4 text-xs font-bold uppercase tracking-wider text-black disabled:opacity-60"
+                    >
+                      <Check className="h-4 w-4" />
+                      {ledSaving
+                        ? "Đang lưu..."
+                        : ledForm.originalSlug
+                          ? "Lưu thay đổi"
+                          : "Đăng dịch vụ"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={requestCloseLed}
+                      className="h-12 min-w-20 border border-white/15 px-4 text-xs font-bold uppercase text-muted-foreground"
+                    >
+                      Hủy
+                    </button>
                   </div>
                 </form>
               </section>
@@ -1299,19 +1421,94 @@ function Dashboard() {
                   {filtered.length} bản ghi
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex w-full gap-2 sm:w-auto">
                 <label className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-steel" />
                   <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Tìm trong kho..."
-                    className="h-10 w-full min-w-56 border border-white/10 bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"
+                    className="h-12 w-full border border-white/10 bg-background pl-9 pr-3 text-base outline-none focus:border-primary sm:h-10 sm:min-w-56 sm:text-sm"
                   />
                 </label>
+                <button
+                  type="button"
+                  onClick={startNew}
+                  className="flex h-12 shrink-0 items-center justify-center gap-2 bg-primary px-4 text-xs font-bold uppercase text-black sm:h-10"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Thêm xe</span>
+                </button>
               </div>
             </div>
-            <div className="overflow-x-auto">
+            <div className="divide-y divide-white/10 md:hidden">
+              {!filtered.length && (
+                <div className="px-4 py-10 text-center">
+                  <BikeIcon className="mx-auto h-8 w-8 text-primary" />
+                  <strong className="mt-3 block text-sm text-white">
+                    {query ? "Không tìm thấy xe phù hợp" : "Kho xe đang trống"}
+                  </strong>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {query
+                      ? "Thử từ khóa khác hoặc xóa nội dung tìm kiếm."
+                      : "Thêm chiếc xe đầu tiên để hiển thị trên website."}
+                  </p>
+                  {!query && (
+                    <button
+                      type="button"
+                      onClick={startNew}
+                      className="mt-4 inline-flex h-11 items-center gap-2 bg-primary px-4 text-xs font-bold uppercase text-black"
+                    >
+                      <Plus className="h-4 w-4" /> Thêm xe đầu tiên
+                    </button>
+                  )}
+                </div>
+              )}
+              {filtered.map((bike) => (
+                <article key={bike.slug} className="p-4">
+                  <div className="flex gap-3">
+                    <img
+                      src={bike.cover}
+                      alt=""
+                      className="h-20 w-24 shrink-0 border border-white/10 object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h3 className="line-clamp-2 text-lg leading-5 text-white">{bike.name}</h3>
+                      <p className="mt-1 text-[10px] uppercase tracking-wider text-steel">
+                        {bike.brand} · {bike.type} · {bike.year}
+                      </p>
+                      <strong className="mt-2 block text-sm text-primary">
+                        {getPublicPrice(bike)}
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <Link
+                      to="/xe/$slug"
+                      params={{ slug: bike.slug }}
+                      className="flex h-11 items-center justify-center gap-1.5 border border-white/10 text-xs font-bold text-steel"
+                    >
+                      <ExternalLink className="h-4 w-4" /> Xem
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => editBike(bike)}
+                      className="flex h-11 items-center justify-center gap-1.5 border border-primary/40 text-xs font-bold text-primary"
+                    >
+                      <Pencil className="h-4 w-4" /> Sửa
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => confirmDelete(bike)}
+                      className="flex h-11 items-center justify-center gap-1.5 border border-red-500/30 text-xs font-bold text-red-300"
+                    >
+                      <Trash2 className="h-4 w-4" /> Xóa
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[680px] text-left">
                 <thead>
                   <tr className="border-b border-white/10 text-[9px] uppercase tracking-[0.18em] text-steel">
@@ -1409,6 +1606,28 @@ function Dashboard() {
             </div>
           </section>
 
+          <VehicleOptionManager
+            options={vehicleOptions}
+            drafts={optionDrafts}
+            editing={editingOption}
+            deletingSlug={deletingOption}
+            notice={optionNotice}
+            saving={optionSaving}
+            onDraftChange={(kind, value) =>
+              setOptionDrafts((current) => ({ ...current, [kind]: value }))
+            }
+            onAdd={(kind) => void createVehicleOption(kind)}
+            onStartEdit={(slug, name) => setEditingOption({ slug, name })}
+            onEditChange={(name) =>
+              setEditingOption((current) => (current ? { ...current, name } : null))
+            }
+            onSaveEdit={() => void saveVehicleOptionName()}
+            onCancelEdit={() => setEditingOption(null)}
+            onAskDelete={setDeletingOption}
+            onConfirmDelete={(slug) => void confirmRemoveVehicleOption(slug)}
+            onCancelDelete={() => setDeletingOption("")}
+          />
+
           <section
             id="led-services"
             className="mt-6 scroll-mt-14 border border-white/10 bg-[#121316]"
@@ -1472,10 +1691,10 @@ function Dashboard() {
                     <p className="mt-1 line-clamp-1 text-[10px] text-muted-foreground">
                       {service.warranty}
                     </p>
-                    <div className="mt-3 flex justify-end gap-1 border-t border-white/10 pt-3">
+                    <div className="mt-3 grid grid-cols-3 gap-2 border-t border-white/10 pt-3 sm:flex sm:justify-end sm:gap-1">
                       <Link
                         to="/den-led-xe-may"
-                        className="inline-flex h-8 items-center gap-1.5 border border-white/10 px-2 text-steel hover:border-primary hover:text-primary"
+                        className="inline-flex h-11 items-center justify-center gap-1.5 border border-white/10 px-2 text-xs text-steel hover:border-primary hover:text-primary sm:h-8"
                         title="Xem trang dịch vụ LED"
                       >
                         <ExternalLink className="h-3.5 w-3.5" />
@@ -1484,7 +1703,7 @@ function Dashboard() {
                       <button
                         type="button"
                         onClick={() => editLed(service)}
-                        className="inline-flex h-8 items-center gap-1.5 border border-white/10 px-2 text-steel hover:border-primary hover:text-primary"
+                        className="inline-flex h-11 items-center justify-center gap-1.5 border border-primary/30 px-2 text-xs text-primary hover:border-primary sm:h-8 sm:border-white/10 sm:text-steel"
                         title="Chỉnh sửa"
                       >
                         <Pencil className="h-3.5 w-3.5" />
@@ -1493,7 +1712,7 @@ function Dashboard() {
                       <button
                         type="button"
                         onClick={() => confirmDeleteLed(service)}
-                        className="inline-flex h-8 items-center gap-1.5 border border-white/10 px-2 text-steel hover:border-red-500 hover:text-red-400"
+                        className="inline-flex h-11 items-center justify-center gap-1.5 border border-red-500/30 px-2 text-xs text-red-300 hover:border-red-500 sm:h-8 sm:border-white/10 sm:text-steel"
                         title="Xóa"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -1516,9 +1735,9 @@ const VEHICLE_OPTION_GROUPS: Array<{
   title: string;
   placeholder: string;
 }> = [
-  { kind: "brand", title: "Hãng xe", placeholder: "Ví dụ: Ducati" },
-  { kind: "type", title: "Loại xe", placeholder: "Ví dụ: Xe điện" },
-  { kind: "machine", title: "Máy", placeholder: "Ví dụ: 62zz" },
+  { kind: "brand", title: "Hãng xe", placeholder: "Nhập hãng mới, ví dụ: Ducati" },
+  { kind: "type", title: "Loại xe", placeholder: "Nhập loại mới, ví dụ: Xe điện" },
+  { kind: "machine", title: "Máy", placeholder: "Nhập cấu hình máy, ví dụ: 62zz" },
 ];
 
 function VehicleOptionManager({
@@ -1555,14 +1774,18 @@ function VehicleOptionManager({
   onCancelDelete: () => void;
 }) {
   return (
-    <section className="mt-5 border border-primary/25 bg-[#121316] p-4 sm:p-5">
+    <section
+      id="vehicle-options"
+      className="mt-6 scroll-mt-14 border border-primary/25 bg-[#121316] p-4 sm:p-5"
+    >
       <div>
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
           Danh mục dùng chung
         </p>
         <h2 className="mt-1 text-2xl text-white">HÃNG XE · LOẠI XE · MÁY</h2>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          Đổi tên sẽ cập nhật các xe đang dùng. Chỉ xóa được mục chưa gán cho xe nào.
+          Nhập tên mới rồi bấm Thêm. Đổi tên sẽ cập nhật các xe đang dùng; chỉ xóa được mục chưa gán
+          cho xe nào.
         </p>
       </div>
 
@@ -1587,16 +1810,18 @@ function VehicleOptionManager({
                   }
                 }}
                 placeholder={group.placeholder}
+                aria-label={`Tên ${group.title.toLocaleLowerCase("vi")} mới`}
                 className="h-10 min-w-0 flex-1 border border-white/10 bg-background px-3 text-xs outline-none focus:border-primary"
               />
               <button
                 type="button"
-                disabled={saving || !drafts[group.kind].trim()}
+                disabled={saving}
                 onClick={() => onAdd(group.kind)}
-                className="grid h-10 w-10 shrink-0 place-items-center bg-primary text-black disabled:opacity-40"
+                className="flex h-10 shrink-0 items-center justify-center gap-1.5 bg-primary px-3 text-[10px] font-bold uppercase text-black disabled:opacity-40"
                 aria-label={`Thêm ${group.title}`}
               >
                 <Plus className="h-4 w-4" />
+                <span>{saving ? "Đợi..." : "Thêm"}</span>
               </button>
             </div>
 
@@ -1797,10 +2022,12 @@ function AdminLogin({ onAuthenticated }: { onAuthenticated: () => void }) {
 
 function Stat({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="border border-white/10 bg-[#121316] p-4">
-      <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-steel">{label}</p>
-      <p className="mt-2 font-display text-4xl text-primary">{value}</p>
-      <p className="text-[10px] text-muted-foreground">{sub}</p>
+    <div className="min-w-0 border border-white/10 bg-[#121316] p-3 sm:p-4">
+      <p className="line-clamp-2 min-h-7 text-[8px] font-bold uppercase leading-3 tracking-[0.14em] text-steel sm:min-h-0 sm:text-[9px] sm:tracking-[0.2em]">
+        {label}
+      </p>
+      <p className="mt-1 font-display text-3xl text-primary sm:mt-2 sm:text-4xl">{value}</p>
+      <p className="hidden text-[10px] text-muted-foreground sm:block">{sub}</p>
     </div>
   );
 }

@@ -1,0 +1,40 @@
+{
+  "id": "/dashboard",
+  "name": "CU PI STORE - Quản lý cửa hàng",
+  "short_name": "CU PI STORE",
+  "description": "Ứng dụng quản lý xe và dịch vụ đèn LED của CU PI STORE.",
+  "lang": "vi",
+  "start_url": "/dashboard?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#070809",
+  "theme_color": "#070809",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Quản lý cửa hàng",
+      "short_name": "Quản lý",
+      "url": "/dashboard"
+    },
+    {
+      "name": "Xem website",
+      "short_name": "Website",
+      "url": "/"
+    }
+  ]
+}

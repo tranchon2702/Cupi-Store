@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const DATA_PREFIX = "data:image/webp;base64,";
+const DATA_IMAGE_PREFIX = /^data:image\/(webp|jpeg|jpg|png);base64,/i;
 
 function uploadDirectory() {
   return path.resolve(process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads"));
@@ -17,7 +17,7 @@ function managedFilename(url: string) {
   const prefix = `${publicBase()}/`;
   if (!url.startsWith(prefix)) return null;
   const filename = url.slice(prefix.length);
-  return /^[a-z0-9-]+\.webp$/i.test(filename) ? filename : null;
+  return /^[a-z0-9-]+\.(?:webp|jpe?g|png)$/i.test(filename) ? filename : null;
 }
 
 async function removeUrl(url: string) {
@@ -48,21 +48,33 @@ export async function stageImages(
   try {
     const urls: string[] = [];
     for (const image of incoming) {
-      if (!image.startsWith(DATA_PREFIX)) {
+      const dataMatch = image.match(DATA_IMAGE_PREFIX);
+      if (!dataMatch) {
         urls.push(image);
         continue;
       }
 
-      const buffer = Buffer.from(image.slice(DATA_PREFIX.length), "base64");
+      const buffer = Buffer.from(image.slice(dataMatch[0].length), "base64");
       const isWebp =
         buffer.length >= 12 &&
         buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
         buffer.subarray(8, 12).toString("ascii") === "WEBP";
-      if (!isWebp || buffer.length > maxBytes) {
-        throw new Error("Ảnh WebP không hợp lệ hoặc vượt quá dung lượng cho phép.");
+      const isJpeg =
+        buffer.length >= 4 &&
+        buffer[0] === 0xff &&
+        buffer[1] === 0xd8 &&
+        buffer[2] === 0xff &&
+        buffer[buffer.length - 2] === 0xff &&
+        buffer[buffer.length - 1] === 0xd9;
+      const isPng =
+        buffer.length >= 8 &&
+        buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+      const extension = isWebp ? "webp" : isJpeg ? "jpg" : isPng ? "png" : null;
+      if (!extension || buffer.length > maxBytes) {
+        throw new Error("Ảnh không hợp lệ hoặc vượt quá dung lượng cho phép.");
       }
 
-      const filename = `${kind}-${slug}-${randomUUID()}.webp`;
+      const filename = `${kind}-${slug}-${randomUUID()}.${extension}`;
       const finalPath = path.join(directory, filename);
       const tempPath = `${finalPath}.tmp`;
       await writeFile(tempPath, buffer, { flag: "wx" });
