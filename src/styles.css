@@ -1,0 +1,293 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * CU PI STORE design system — black / racing yellow.
+ * All colors in oklch. Never hardcode colors in components.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-sans: "Barlow", system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-steel: var(--steel);
+  --color-surface: var(--surface);
+}
+
+:root {
+  --radius: 0.25rem;
+  --background: oklch(0.16 0.005 250);
+  --foreground: oklch(0.97 0.005 90);
+  --surface: oklch(0.21 0.006 250);
+  --card: oklch(0.22 0.006 250);
+  --card-foreground: oklch(0.97 0.005 90);
+  --popover: oklch(0.21 0.006 250);
+  --popover-foreground: oklch(0.97 0.005 90);
+  --primary: oklch(0.83 0.17 90);
+  --primary-foreground: oklch(0.16 0.01 90);
+  --secondary: oklch(0.28 0.008 250);
+  --secondary-foreground: oklch(0.97 0.005 90);
+  --muted: oklch(0.26 0.008 250);
+  --muted-foreground: oklch(0.7 0.012 250);
+  --accent: oklch(0.83 0.17 90);
+  --accent-foreground: oklch(0.16 0.01 90);
+  --destructive: oklch(0.62 0.22 25);
+  --destructive-foreground: oklch(0.98 0.005 90);
+  --border: oklch(0.32 0.01 250);
+  --input: oklch(0.3 0.01 250);
+  --ring: oklch(0.83 0.17 90);
+  --steel: oklch(0.55 0.012 250);
+
+  --gradient-hero: linear-gradient(
+    100deg,
+    oklch(0.14 0.005 250) 0%,
+    oklch(0.14 0.005 250 / 0.72) 45%,
+    oklch(0.14 0.005 250 / 0.15) 100%
+  );
+  --gradient-card: linear-gradient(180deg, oklch(0.24 0.007 250) 0%, oklch(0.18 0.005 250) 100%);
+  --shadow-glow: 0 0 0 1px oklch(0.83 0.17 90 / 0.35), 0 18px 45px -18px oklch(0.83 0.17 90 / 0.45);
+  --shadow-panel: 0 24px 60px -30px oklch(0 0 0 / 0.9);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    min-width: 320px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    font-synthesis: none;
+  }
+}
+
+@utility logo-mark {
+  clip-path: polygon(0 0, 76% 0, 100% 24%, 100% 100%, 24% 100%, 0 76%);
+}
+
+@utility hero-aurora {
+  background:
+    radial-gradient(circle at 74% 48%, oklch(0.83 0.17 90 / 0.12), transparent 32%),
+    linear-gradient(
+      115deg,
+      oklch(0.08 0.005 250) 0%,
+      oklch(0.11 0.006 250) 52%,
+      oklch(0.07 0.004 250) 100%
+    );
+}
+
+@utility filter-panel {
+  box-shadow: 0 30px 80px -42px oklch(0 0 0 / 0.95);
+  clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 0 100%);
+}
+
+@utility cms-field {
+  & input,
+  & select,
+  & textarea {
+    width: 100%;
+    border: 1px solid oklch(1 0 0 / 0.1);
+    background: var(--background);
+    padding: 0.68rem 0.75rem;
+    color: var(--foreground);
+    font-size: 0.875rem;
+    outline: none;
+    transition: border-color 160ms ease;
+  }
+
+  & input:focus,
+  & select:focus,
+  & textarea:focus {
+    border-color: var(--primary);
+  }
+
+  & textarea {
+    resize: vertical;
+  }
+}
+
+@keyframes contact-option-in {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.84);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes contact-attention-pulse {
+  0%,
+  100% {
+    transform: translateY(0);
+    filter: drop-shadow(0 0 0 oklch(0.83 0.17 90 / 0));
+  }
+  50% {
+    transform: translateY(-4px);
+    filter: drop-shadow(0 0 12px oklch(0.83 0.17 90 / 0.5));
+  }
+}
+
+@keyframes social-ring-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@utility social-racing-ring {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 9999px;
+  box-shadow:
+    0 0 0 1px oklch(0.1 0 0),
+    0 0 14px oklch(0.83 0.17 90 / 0.16),
+    0 10px 30px oklch(0 0 0 / 0.5);
+
+  &::before {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    inset: -45%;
+    background: repeating-conic-gradient(
+      from 0deg,
+      var(--primary) 0deg 18deg,
+      oklch(0.1 0.005 250) 18deg 36deg
+    );
+    animation: social-ring-spin 6.5s linear infinite;
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    inset: 2px;
+    border-radius: inherit;
+    background: radial-gradient(circle at 35% 28%, oklch(0.29 0.01 250), oklch(0.16 0.006 250));
+  }
+
+  & > img {
+    position: relative;
+    z-index: 2;
+  }
+}
+
+@utility contact-option {
+  opacity: 0;
+  animation: contact-option-in 560ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@utility contact-attention {
+  animation: contact-attention-pulse 2.4s ease-in-out 900ms infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contact-option,
+  .contact-attention,
+  .social-racing-ring::before {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+/* Diagonal racing clip used on cards and badges */
+@utility clip-blade {
+  clip-path: polygon(
+    0 0,
+    calc(100% - 18px) 0,
+    100% 18px,
+    100% 100%,
+    18px 100%,
+    0 calc(100% - 18px)
+  );
+}
+
+@utility clip-tag {
+  clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+}
+
+@utility hazard-stripes {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--primary) 0 14px,
+    oklch(0.16 0.005 250) 14px 28px
+  );
+}
+
+@utility grid-tech {
+  background-image:
+    linear-gradient(oklch(1 0 0 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+@utility card-garage {
+  background: var(--gradient-card);
+  box-shadow: var(--shadow-panel);
+  transition:
+    transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.35s ease;
+
+  &:hover {
+    transform: translateY(-6px);
+    box-shadow: var(--shadow-glow), var(--shadow-panel);
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility text-outline {
+  -webkit-text-stroke: 1px var(--primary);
+  color: transparent;
+}
