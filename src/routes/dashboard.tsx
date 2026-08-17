@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   Bike as BikeIcon,
   Check,
@@ -113,6 +113,7 @@ const slugify = (value: string) =>
     .replace(/(^-|-$)/g, "");
 
 function Dashboard() {
+  const dashboardMainRef = useRef<HTMLElement>(null);
   const { inventory, error: bikeLoadError, upsertBike, removeBike } = useBikeInventory();
   const { services, error: ledLoadError, upsertService, removeService } = useLedCatalog();
   const {
@@ -176,6 +177,8 @@ function Dashboard() {
 
   useEffect(() => {
     if (authState !== "authenticated") return;
+    const scrollContainer = dashboardMainRef.current;
+    if (!scrollContainer) return;
     const updateActiveSection = () => {
       const inventoryTop =
         document.getElementById("inventory")?.getBoundingClientRect().top ??
@@ -183,26 +186,33 @@ function Dashboard() {
       const ledTop =
         document.getElementById("led-services")?.getBoundingClientRect().top ??
         Number.POSITIVE_INFINITY;
-      const marker = Math.min(220, window.innerHeight * 0.32);
-      const pageIsScrollable = document.documentElement.scrollHeight > window.innerHeight + 24;
+      const marker =
+        scrollContainer.getBoundingClientRect().top +
+        Math.min(220, scrollContainer.clientHeight * 0.32);
+      const pageIsScrollable = scrollContainer.scrollHeight > scrollContainer.clientHeight + 24;
       const atBottom =
         pageIsScrollable &&
-        window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 24;
+        scrollContainer.scrollTop + scrollContainer.clientHeight >=
+          scrollContainer.scrollHeight - 24;
       setActiveSection(
         atBottom || ledTop <= marker ? "led" : inventoryTop <= marker ? "inventory" : "overview",
       );
     };
     updateActiveSection();
-    window.addEventListener("scroll", updateActiveSection, { passive: true });
+    scrollContainer.addEventListener("scroll", updateActiveSection, { passive: true });
     window.addEventListener("resize", updateActiveSection);
     return () => {
-      window.removeEventListener("scroll", updateActiveSection);
+      scrollContainer.removeEventListener("scroll", updateActiveSection);
       window.removeEventListener("resize", updateActiveSection);
     };
   }, [authState]);
 
   const scrollToDashboardSection = (id: "overview" | "inventory" | "led-services") => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (id === "overview") {
+      dashboardMainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
     window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
     setActiveSection(id === "led-services" ? "led" : id);
   };
@@ -244,7 +254,7 @@ function Dashboard() {
     setInitialForm(JSON.stringify(nextForm));
     setShowEditor(true);
     setNotice("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    dashboardMainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const startNew = () => {
@@ -258,7 +268,7 @@ function Dashboard() {
     setInitialForm(JSON.stringify(nextForm));
     setShowEditor(true);
     setNotice("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    dashboardMainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const onImages = async (files: FileList | null) => {
@@ -535,8 +545,8 @@ function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#0b0c0e] text-foreground">
-      <header className="border-b border-white/10 bg-[#101114]">
+    <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[#0b0c0e] text-foreground">
+      <header className="z-40 shrink-0 border-b border-white/10 bg-[#101114]">
         <div className="mx-auto flex h-16 max-w-[1500px] items-center justify-between px-4 sm:px-6">
           <Link to="/" className="flex items-center gap-3">
             <img
@@ -565,7 +575,7 @@ function Dashboard() {
         </div>
       </header>
 
-      <nav className="sticky top-0 z-30 grid grid-cols-2 border-b border-white/10 bg-[#0f1012] lg:hidden">
+      <nav className="z-30 grid shrink-0 grid-cols-2 border-b border-white/10 bg-[#0f1012] lg:hidden">
         <button
           type="button"
           onClick={() => scrollToDashboardSection("inventory")}
@@ -588,8 +598,8 @@ function Dashboard() {
         </button>
       </nav>
 
-      <div className="mx-auto grid max-w-[1500px] lg:grid-cols-[230px_1fr]">
-        <aside className="sticky top-0 hidden h-screen self-start overflow-y-auto border-r border-white/10 bg-[#0f1012] p-4 lg:block">
+      <div className="mx-auto grid min-h-0 w-full max-w-[1500px] flex-1 lg:grid-cols-[230px_1fr]">
+        <aside className="hidden h-full overflow-y-auto border-r border-white/10 bg-[#0f1012] p-4 lg:block">
           <p className="px-3 pb-3 text-[9px] font-bold uppercase tracking-[0.24em] text-steel">
             Quản trị
           </p>
@@ -628,7 +638,11 @@ function Dashboard() {
           </button>
         </aside>
 
-        <main id="overview" className="min-w-0 scroll-mt-14 p-4 sm:p-6 lg:p-8">
+        <main
+          ref={dashboardMainRef}
+          id="overview"
+          className="min-h-0 min-w-0 overflow-y-auto overscroll-contain scroll-smooth p-4 sm:p-6 lg:p-8"
+        >
           {(bikeLoadError || ledLoadError || optionLoadError) && (
             <div className="mb-5 border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-300">
               Không kết nối được dữ liệu máy chủ. {bikeLoadError || ledLoadError || optionLoadError}
