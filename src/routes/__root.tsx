@@ -103,8 +103,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap&subset=vietnamese",
       },
-      { rel: "icon", href: "/cupi-favicon.png", type: "image/png", sizes: "512x512" },
-      { rel: "apple-touch-icon", href: "/cupi-favicon.png", sizes: "512x512" },
+      { rel: "icon", href: "/cupi-favicon-v3.svg", type: "image/svg+xml" },
     ],
   }),
 

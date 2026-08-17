@@ -144,10 +144,6 @@ function Home() {
               XE TẠI <span className="text-outline">CỬA HÀNG</span>
             </h2>
           </div>
-          <p className="max-w-md text-sm leading-6 text-muted-foreground">
-            Honda, Yamaha, Suzuki, Piaggio, Vespa và các thương hiệu phổ biến — tìm đúng xe chỉ
-            trong vài thao tác.
-          </p>
         </div>
 
         <div className="filter-panel border border-white/10 bg-surface/90 p-4 sm:p-5">

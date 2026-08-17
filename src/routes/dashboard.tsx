@@ -4,7 +4,6 @@ import {
   Bike as BikeIcon,
   Check,
   ExternalLink,
-  Gauge,
   ImagePlus,
   LayoutDashboard,
   Lightbulb,
@@ -12,7 +11,6 @@ import {
   LogOut,
   Pencil,
   Plus,
-  RotateCcw,
   Search,
   Trash2,
   X,
@@ -107,20 +105,8 @@ const slugify = (value: string) =>
     .replace(/(^-|-$)/g, "");
 
 function Dashboard() {
-  const {
-    inventory,
-    error: bikeLoadError,
-    upsertBike,
-    removeBike,
-    resetInventory,
-  } = useBikeInventory();
-  const {
-    services,
-    error: ledLoadError,
-    upsertService,
-    removeService,
-    resetServices,
-  } = useLedCatalog();
+  const { inventory, error: bikeLoadError, upsertBike, removeBike } = useBikeInventory();
+  const { services, error: ledLoadError, upsertService, removeService } = useLedCatalog();
   const [authState, setAuthState] = useState<"loading" | "authenticated" | "guest">("loading");
   const [form, setForm] = useState<BikeForm>(emptyForm);
   const [query, setQuery] = useState("");
@@ -427,9 +413,7 @@ function Dashboard() {
       <header className="border-b border-white/10 bg-[#101114]">
         <div className="mx-auto flex h-16 max-w-[1500px] items-center justify-between px-4 sm:px-6">
           <Link to="/" className="flex items-center gap-3">
-            <span className="logo-mark grid h-9 w-9 place-items-center border border-primary/50 bg-primary/10">
-              <Gauge className="h-5 w-5 text-primary" />
-            </span>
+            <img src="/cupi-favicon-v3.svg" alt="" className="h-10 w-10 object-contain" />
             <span>
               <strong className="block font-display text-xl tracking-wider text-white">
                 CU PI STORE
@@ -458,6 +442,21 @@ function Dashboard() {
           </div>
         </div>
       </header>
+
+      <nav className="grid grid-cols-2 border-b border-white/10 bg-[#0f1012] lg:hidden">
+        <a
+          href="#inventory"
+          className="flex h-11 items-center justify-center gap-2 border-r border-white/10 text-xs font-bold uppercase tracking-wider text-white"
+        >
+          <BikeIcon className="h-4 w-4 text-primary" /> Kho xe
+        </a>
+        <a
+          href="#led-services"
+          className="flex h-11 items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider text-white"
+        >
+          <Lightbulb className="h-4 w-4 text-primary" /> Đèn LED
+        </a>
+      </nav>
 
       <div className="mx-auto grid max-w-[1500px] lg:grid-cols-[230px_1fr]">
         <aside className="hidden min-h-[calc(100vh-64px)] border-r border-white/10 bg-[#0f1012] p-4 lg:block">
@@ -491,11 +490,6 @@ function Dashboard() {
           >
             <Plus className="h-4 w-4" /> Đăng hạng mục LED
           </button>
-          <div className="mt-8 border border-primary/20 bg-primary/5 p-3 text-[10px] leading-5 text-muted-foreground">
-            <strong className="block text-primary">CMS bảo mật</strong>
-            Dữ liệu được lưu trong MongoDB. Ảnh WebP được lưu riêng trên máy chủ và tự dọn khi xóa
-            sản phẩm.
-          </div>
         </aside>
 
         <main className="min-w-0 p-4 sm:p-6 lg:p-8">
@@ -507,11 +501,11 @@ function Dashboard() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary">
-                Quản trị / Danh sách xe
+                Khu vực quản trị
               </p>
-              <h1 className="mt-1 text-3xl text-white sm:text-4xl">QUẢN LÝ KHO XE</h1>
+              <h1 className="mt-1 text-3xl text-white sm:text-4xl">QUẢN LÝ CỬA HÀNG</h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Đăng xe, cập nhật nội dung và tối ưu ảnh ngay tại một nơi.
+                Chọn việc cần làm, nhập thông tin rồi bấm lưu để cập nhật website.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -519,13 +513,13 @@ function Dashboard() {
                 onClick={startNewLed}
                 className="flex h-11 items-center justify-center gap-2 border border-primary px-5 text-xs font-bold uppercase tracking-wider text-primary"
               >
-                <Lightbulb className="h-4 w-4" /> Đăng dịch vụ LED
+                <Lightbulb className="h-4 w-4" /> Thêm dịch vụ LED
               </button>
               <button
                 onClick={startNew}
                 className="flex h-11 items-center justify-center gap-2 bg-primary px-5 text-xs font-bold uppercase tracking-wider text-black"
               >
-                <Plus className="h-4 w-4" /> Đăng xe mới
+                <Plus className="h-4 w-4" /> Thêm xe mới
               </button>
             </div>
           </div>
@@ -544,9 +538,53 @@ function Dashboard() {
             <Stat
               label="Hãng xe đang có"
               value={String(new Set(inventory.map((bike) => bike.brand)).size)}
-              sub="Giá chỉ hiển thị dạng khoảng"
+              sub="Hãng hiện có xe trong kho"
             />
           </div>
+
+          {!inventory.length && !services.length && (
+            <section className="mt-5 border border-primary/25 bg-primary/[0.04] p-4 sm:p-5">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
+                Bắt đầu nhanh
+              </p>
+              <h2 className="mt-1 text-2xl text-white">BẠN MUỐN ĐĂNG NỘI DUNG GÌ?</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Chỉ cần nhập thông tin chính và chọn ảnh; hệ thống sẽ tự tối ưu ảnh trước khi lưu.
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={startNew}
+                  className="flex items-center gap-4 border border-primary bg-primary px-4 py-4 text-left text-black"
+                >
+                  <span className="grid h-10 w-10 shrink-0 place-items-center bg-black/10">
+                    <BikeIcon className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <strong className="block text-sm uppercase">Đăng một chiếc xe</strong>
+                    <small className="mt-1 block text-[11px]">
+                      Thông tin xe, giá và tối đa 8 ảnh
+                    </small>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={startNewLed}
+                  className="flex items-center gap-4 border border-white/15 bg-[#121316] px-4 py-4 text-left text-white hover:border-primary"
+                >
+                  <span className="grid h-10 w-10 shrink-0 place-items-center bg-primary/10 text-primary">
+                    <Lightbulb className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <strong className="block text-sm uppercase">Đăng dịch vụ đèn LED</strong>
+                    <small className="mt-1 block text-[11px] text-muted-foreground">
+                      Hạng mục, giá, bảo hành và hình ảnh
+                    </small>
+                  </span>
+                </button>
+              </div>
+            </section>
+          )}
 
           {showEditor && (
             <div
@@ -1064,21 +1102,6 @@ function Dashboard() {
                     className="h-10 w-full min-w-56 border border-white/10 bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"
                   />
                 </label>
-                <button
-                  onClick={() => {
-                    if (window.confirm("Khôi phục dữ liệu xe mẫu ban đầu?")) {
-                      void resetInventory().catch((reason) =>
-                        setNotice(
-                          reason instanceof Error ? reason.message : "Không thể khôi phục.",
-                        ),
-                      );
-                    }
-                  }}
-                  className="grid h-10 w-10 place-items-center border border-white/10 text-steel hover:border-primary hover:text-primary"
-                  title="Khôi phục dữ liệu mẫu"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </button>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -1092,6 +1115,30 @@ function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
+                  {!filtered.length && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-10 text-center">
+                        <BikeIcon className="mx-auto h-8 w-8 text-primary" />
+                        <strong className="mt-3 block text-sm text-white">
+                          {query ? "Không tìm thấy xe phù hợp" : "Kho xe đang trống"}
+                        </strong>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {query
+                            ? "Thử từ khóa khác hoặc xóa nội dung tìm kiếm."
+                            : "Thêm chiếc xe đầu tiên để hiển thị trên website."}
+                        </p>
+                        {!query && (
+                          <button
+                            type="button"
+                            onClick={startNew}
+                            className="mt-4 inline-flex h-10 items-center gap-2 bg-primary px-4 text-xs font-bold uppercase text-black"
+                          >
+                            <Plus className="h-4 w-4" /> Thêm xe đầu tiên
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )}
                   {filtered.map((bike) => (
                     <tr
                       key={bike.slug}
@@ -1124,24 +1171,27 @@ function Dashboard() {
                           <Link
                             to="/xe/$slug"
                             params={{ slug: bike.slug }}
-                            className="grid h-8 w-8 place-items-center border border-white/10 text-steel hover:border-primary hover:text-primary"
+                            className="inline-flex h-8 items-center gap-1.5 border border-white/10 px-2 text-steel hover:border-primary hover:text-primary"
                             title="Xem trang xe"
                           >
                             <ExternalLink className="h-3.5 w-3.5" />
+                            <span className="hidden xl:inline">Xem</span>
                           </Link>
                           <button
                             onClick={() => editBike(bike)}
-                            className="grid h-8 w-8 place-items-center border border-white/10 text-steel hover:border-primary hover:text-primary"
+                            className="inline-flex h-8 items-center gap-1.5 border border-white/10 px-2 text-steel hover:border-primary hover:text-primary"
                             title="Chỉnh sửa"
                           >
                             <Pencil className="h-3.5 w-3.5" />
+                            <span className="hidden xl:inline">Sửa</span>
                           </button>
                           <button
                             onClick={() => confirmDelete(bike)}
-                            className="grid h-8 w-8 place-items-center border border-white/10 text-steel hover:border-red-500 hover:text-red-400"
+                            className="inline-flex h-8 items-center gap-1.5 border border-white/10 px-2 text-steel hover:border-red-500 hover:text-red-400"
                             title="Xóa"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
+                            <span className="hidden xl:inline">Xóa</span>
                           </button>
                         </div>
                       </td>
@@ -1168,26 +1218,26 @@ function Dashboard() {
                 >
                   <Plus className="h-4 w-4" /> Thêm dịch vụ
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm("Khôi phục danh sách dịch vụ LED mẫu ban đầu?")) {
-                      void resetServices().catch((reason) =>
-                        setLedNotice(
-                          reason instanceof Error ? reason.message : "Không thể khôi phục.",
-                        ),
-                      );
-                    }
-                  }}
-                  className="grid h-10 w-10 place-items-center border border-white/10 text-steel hover:border-primary hover:text-primary"
-                  title="Khôi phục dữ liệu LED mẫu"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </button>
               </div>
             </div>
 
             <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
+              {!services.length && (
+                <div className="border border-dashed border-white/15 p-8 text-center md:col-span-2 xl:col-span-3">
+                  <Lightbulb className="mx-auto h-8 w-8 text-primary" />
+                  <strong className="mt-3 block text-sm text-white">Chưa có dịch vụ đèn LED</strong>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Thêm hạng mục đầu tiên để khách xem thông tin và hình ảnh thi công.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={startNewLed}
+                    className="mt-4 inline-flex h-10 items-center gap-2 bg-primary px-4 text-xs font-bold uppercase text-black"
+                  >
+                    <Plus className="h-4 w-4" /> Thêm dịch vụ đầu tiên
+                  </button>
+                </div>
+              )}
               {services.map((service) => (
                 <article
                   key={service.slug}
@@ -1215,26 +1265,29 @@ function Dashboard() {
                     <div className="mt-3 flex justify-end gap-1 border-t border-white/10 pt-3">
                       <Link
                         to="/den-led-xe-may"
-                        className="grid h-8 w-8 place-items-center border border-white/10 text-steel hover:border-primary hover:text-primary"
+                        className="inline-flex h-8 items-center gap-1.5 border border-white/10 px-2 text-steel hover:border-primary hover:text-primary"
                         title="Xem trang dịch vụ LED"
                       >
                         <ExternalLink className="h-3.5 w-3.5" />
+                        <span>Xem</span>
                       </Link>
                       <button
                         type="button"
                         onClick={() => editLed(service)}
-                        className="grid h-8 w-8 place-items-center border border-white/10 text-steel hover:border-primary hover:text-primary"
+                        className="inline-flex h-8 items-center gap-1.5 border border-white/10 px-2 text-steel hover:border-primary hover:text-primary"
                         title="Chỉnh sửa"
                       >
                         <Pencil className="h-3.5 w-3.5" />
+                        <span>Sửa</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => confirmDeleteLed(service)}
-                        className="grid h-8 w-8 place-items-center border border-white/10 text-steel hover:border-red-500 hover:text-red-400"
+                        className="inline-flex h-8 items-center gap-1.5 border border-white/10 px-2 text-steel hover:border-red-500 hover:text-red-400"
                         title="Xóa"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
+                        <span>Xóa</span>
                       </button>
                     </div>
                   </div>
