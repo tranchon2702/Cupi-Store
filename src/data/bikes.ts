@@ -5,7 +5,7 @@ import bike4 from "@/assets/bike-4.jpg";
 import detail1 from "@/assets/detail-1.jpg";
 import detail2 from "@/assets/detail-2.jpg";
 import detail3 from "@/assets/detail-3.jpg";
-import { formatPublicPrice } from "@/lib/price-utils";
+import { formatVehiclePrice, type VehiclePriceBand } from "@/lib/price-utils";
 
 export const BIKE_BRANDS = [
   "Honda",
@@ -26,6 +26,7 @@ export type Bike = {
   year: number;
   price: number;
   priceMillion?: number | null;
+  priceBand?: VehiclePriceBand;
   priceLabel?: string;
   engine: number;
   condition: "Mới" | "Đã qua sử dụng";
@@ -267,6 +268,7 @@ export const bikes: Bike[] = [
   },
 ];
 
-export const getPublicPrice = (bike: Pick<Bike, "price" | "priceMillion" | "priceLabel">) =>
-  formatPublicPrice(bike);
+export const getPublicPrice = (
+  bike: Pick<Bike, "price" | "priceMillion" | "priceLabel" | "priceBand">,
+) => formatVehiclePrice(bike);
 export const getBike = (slug: string) => bikes.find((bike) => bike.slug === slug);

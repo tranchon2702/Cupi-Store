@@ -5,14 +5,19 @@ export type PriceSource = {
 };
 
 export type PriceMode = "range" | "contact";
+export type VehiclePriceBand = "head" | "small" | "medium" | "large";
+
+export type VehiclePriceSource = PriceSource & {
+  priceBand?: VehiclePriceBand;
+};
 
 export const PRICE_FILTERS = [
   { id: "all", label: "Tất cả" },
-  { id: "under-10", label: "1–9trXXX", min: 1, max: 9 },
-  { id: "10-29", label: "10–29trXXX", min: 10, max: 29 },
-  { id: "30-49", label: "30–49trXXX", min: 30, max: 49 },
-  { id: "50-69", label: "50–69trXXX", min: 50, max: 69 },
-  { id: "70-100", label: "70–100trXXX", min: 70, max: 100 },
+  { id: "under-10", label: "Dưới 10 triệu", min: 1, max: 9 },
+  { id: "10-29", label: "1X–2X", min: 10, max: 29 },
+  { id: "30-49", label: "3X–4X", min: 30, max: 49 },
+  { id: "50-69", label: "5X–6X", min: 50, max: 69 },
+  { id: "70-100", label: "7X–1XX", min: 70, max: 100 },
   { id: "contact", label: "Liên hệ" },
 ] as const;
 
@@ -51,6 +56,24 @@ export const getPriceMillion = (item: PriceSource): number | null => {
 export const formatPublicPrice = (item: PriceSource) => {
   const million = getPriceMillion(item);
   return million ? `${million}trXXX` : "Liên hệ";
+};
+
+export const formatVehiclePrice = (item: VehiclePriceSource) => {
+  const million = getPriceMillion(item);
+  if (million === null) return "Liên hệ";
+  if (million < 10) return `${million}trXXX`;
+  if (million >= 100) return "1XX triệu";
+
+  const head = `${Math.floor(million / 10)}X`;
+  const suffix =
+    item.priceBand === "small"
+      ? " nhỏ"
+      : item.priceBand === "medium"
+        ? " trung"
+        : item.priceBand === "large"
+          ? " lớn"
+          : " triệu";
+  return `${head}${suffix}`;
 };
 
 export const matchesPriceFilter = (item: PriceSource, filterId: string) => {

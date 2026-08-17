@@ -21,7 +21,13 @@ import dashboardLogo from "@/assets/logo-web.png";
 import { useBikeInventory } from "@/hooks/use-bike-inventory";
 import { useLedCatalog } from "@/hooks/use-led-catalog";
 import { optimizeImages } from "@/lib/image-utils";
-import { formatPublicPrice, getPriceMillion, type PriceMode } from "@/lib/price-utils";
+import {
+  formatPublicPrice,
+  formatVehiclePrice,
+  getPriceMillion,
+  type PriceMode,
+  type VehiclePriceBand,
+} from "@/lib/price-utils";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -38,6 +44,7 @@ type BikeForm = {
   year: string;
   priceMode: PriceMode;
   priceMillion: string;
+  priceBand: VehiclePriceBand;
   engine: string;
   condition: Bike["condition"];
   description: string;
@@ -68,6 +75,7 @@ const emptyForm = (): BikeForm => ({
   year: String(new Date().getFullYear()),
   priceMode: "range",
   priceMillion: "1",
+  priceBand: "head",
   engine: "150",
   condition: "Đã qua sử dụng",
   description: "",
@@ -198,6 +206,7 @@ function Dashboard() {
       year: String(bike.year),
       priceMode: priceMillion === null ? "contact" : "range",
       priceMillion: String(priceMillion ?? 1),
+      priceBand: bike.priceBand ?? "head",
       engine: String(bike.engine),
       condition: bike.condition,
       description: bike.description,
@@ -264,7 +273,8 @@ function Dashboard() {
       year: Number(form.year),
       price: 0,
       priceMillion,
-      priceLabel: formatPublicPrice({ priceMillion }),
+      priceBand: form.priceBand,
+      priceLabel: formatVehiclePrice({ priceMillion, priceBand: form.priceBand }),
       engine: Number(form.engine),
       condition: form.condition,
       cover: form.images[0]!,
@@ -714,11 +724,17 @@ function Dashboard() {
                           setForm({ ...form, priceMode: event.target.value as PriceMode })
                         }
                       >
-                        <option value="range">Giá khoảng — trXXX</option>
+                        <option value="range">Ẩn theo đầu giá — 2X, 3X...</option>
                         <option value="contact">Liên hệ</option>
                       </select>
                     </Field>
-                    <Field label={form.priceMode === "range" ? "Số triệu (1–100) *" : "Hiển thị"}>
+                    <Field
+                      label={
+                        form.priceMode === "range"
+                          ? "Mốc giá để lọc (không công khai) *"
+                          : "Hiển thị"
+                      }
+                    >
                       {form.priceMode === "range" ? (
                         <input
                           type="number"
@@ -735,14 +751,43 @@ function Dashboard() {
                       ) : (
                         <input value="Liên hệ" readOnly />
                       )}
+                      {form.priceMode === "range" && (
+                        <small className="mt-1.5 block text-[10px] leading-4 text-steel">
+                          Ví dụ nhập 38 để xe nằm đúng bộ lọc giá; khách không thấy số 38.
+                        </small>
+                      )}
                       <small className="mt-1.5 block text-[10px] text-primary">
                         Khách sẽ thấy:{" "}
-                        {formatPublicPrice({
+                        {formatVehiclePrice({
                           priceMillion:
                             form.priceMode === "range" ? Number(form.priceMillion) : null,
+                          priceBand: form.priceBand,
                         })}
                       </small>
                     </Field>
+                    {form.priceMode === "range" &&
+                      Number(form.priceMillion) >= 10 &&
+                      Number(form.priceMillion) < 100 && (
+                        <Field label="Cách ghi công khai">
+                          <select
+                            value={form.priceBand}
+                            onChange={(event) =>
+                              setForm({
+                                ...form,
+                                priceBand: event.target.value as VehiclePriceBand,
+                              })
+                            }
+                          >
+                            <option value="head">Chỉ hiện đầu — 3X triệu</option>
+                            <option value="small">Mức nhỏ — 3X nhỏ</option>
+                            <option value="medium">Mức trung — 3X trung</option>
+                            <option value="large">Mức lớn — 3X lớn</option>
+                          </select>
+                          <small className="mt-1.5 block text-[10px] leading-4 text-steel">
+                            Nhỏ: đầu khoảng thấp · Trung: khoảng giữa · Lớn: gần đầu kế tiếp.
+                          </small>
+                        </Field>
+                      )}
                     <Field label="Phân khối (cc)">
                       <input
                         type="number"

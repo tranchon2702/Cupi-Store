@@ -27,6 +27,7 @@ export const bikeSchema = z.object({
     .max(new Date().getFullYear() + 1),
   price: z.number().nonnegative().default(0),
   priceMillion: priceSchema,
+  priceBand: z.enum(["head", "small", "medium", "large"]).optional(),
   priceLabel: z.string().max(40).optional(),
   engine: z.number().int().positive().max(3000),
   condition: z.enum(["Mới", "Đã qua sử dụng"]),
